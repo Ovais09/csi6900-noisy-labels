@@ -1,0 +1,31 @@
+datasets:
+  - breast_cancer
+  - wine
+  - digits
+
+noise_types:
+  - symmetric
+  - class_dependent
+
+noise_rates:
+  - 0.1
+  - 0.2
+  - 0.3
+  - 0.4
+
+models:
+  - logistic_regression
+  - random_forest
+  - hist_gradient_boosting
+
+seeds:
+  - 42
+  - 123
+  - 999
+  - 2026
+
+cv_folds: 5
+
+output:
+  results_csv: results/tables/main_experiment_results.csv
+  summary_csv: results/tables/summary_results.csv
