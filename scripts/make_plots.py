@@ -12,6 +12,13 @@ except ModuleNotFoundError:
     sns = None
 
 
+def _seaborn_lineplot(**kwargs):
+    try:
+        sns.lineplot(**kwargs, errorbar="sd")
+    except TypeError:
+        sns.lineplot(**kwargs, ci="sd")
+
+
 def plot_metric(df, metric, dataset, noise_type, model, output_dir):
     subset = df[
         (df["dataset"] == dataset)
@@ -24,13 +31,12 @@ def plot_metric(df, metric, dataset, noise_type, model, output_dir):
 
     plt.figure(figsize=(8, 5))
     if sns is not None:
-        sns.lineplot(
+        _seaborn_lineplot(
             data=subset,
             x="noise_rate",
             y=metric,
             hue="condition",
             marker="o",
-            ci="sd",
         )
     else:
         for condition, group in subset.groupby("condition"):
@@ -65,14 +71,13 @@ def plot_detection_f1(df, dataset, output_dir):
 
     plt.figure(figsize=(8, 5))
     if sns is not None:
-        sns.lineplot(
+        _seaborn_lineplot(
             data=subset,
             x="noise_rate",
             y="det_f1",
             hue="model",
             style="noise_type",
             marker="o",
-            ci="sd",
         )
     else:
         for (model, noise_type), group in subset.groupby(["model", "noise_type"]):

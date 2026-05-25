@@ -28,7 +28,7 @@ def _predict_proba_cv(model, X_train, y_train, cv: int, random_state: int):
         y_train,
         cv=_make_cv(y_train, cv=cv, random_state=random_state),
         method="predict_proba",
-        n_jobs=-1,
+        n_jobs=1,
     )
 
 
@@ -59,7 +59,7 @@ def disagreement_scores(model, X_train, y_train, cv: int = 5, random_state: int 
         y_train,
         cv=_make_cv(y_train, cv=cv, random_state=random_state),
         method="predict",
-        n_jobs=-1,
+        n_jobs=1,
     )
     y_array = np.asarray(y_train)
 

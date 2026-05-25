@@ -67,7 +67,7 @@ def relabel_suspicious_samples(
         y_train,
         cv=_make_cv(y_train, cv=cv, random_state=random_state),
         method="predict",
-        n_jobs=-1,
+        n_jobs=1,
     )
 
     y_relabel = y_train.copy()

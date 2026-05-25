@@ -15,7 +15,11 @@ def get_baseline_models(random_state: int = 42):
                 ("scaler", StandardScaler()),
                 (
                     "model",
-                    LogisticRegression(max_iter=2000, random_state=random_state),
+                    LogisticRegression(
+                        max_iter=2000,
+                        random_state=random_state,
+                        solver="liblinear",
+                    ),
                 ),
             ]
         ),
