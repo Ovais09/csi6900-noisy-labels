@@ -9,7 +9,8 @@ The pipeline:
 2. Split into train/validation/test.
 3. Corrupt only the training labels.
 4. Train clean and noisy baselines.
-5. Detect suspicious labels with a combined score:
+5. Detect suspicious labels with confidence, disagreement, margin, and combined
+   detector scores. The combined score is
    `0.5 * confidence + 0.3 * disagreement + 0.2 * margin`.
 6. Compare removal and relabeling against the noisy baseline.
 7. Save metrics, summary tables, and figures.
@@ -58,6 +59,7 @@ The default matrix is defined in `configs/experiment_config.yaml`:
 - Models: logistic regression, random forest, histogram gradient boosting
 - Noise types: symmetric, class-dependent
 - Noise rates: 10%, 20%, 30%, 40%
+- Detectors: combined, confidence, disagreement, margin
 - Seeds: 42, 123, 999, 2026
 
 Run:
@@ -66,12 +68,18 @@ Run:
 python scripts/run_cleaning_experiments.py
 python scripts/make_summary_tables.py
 python scripts/make_plots.py
+python scripts/make_metadata_tables.py
 ```
 
 Main outputs:
 
 - `results/tables/main_experiment_results.csv`
 - `results/tables/summary_results.csv`
+- `results/tables/dataset_overview.csv`
+- `results/tables/model_overview.csv`
+- `results/tables/noise_settings.csv`
+- `results/tables/detector_methods.csv`
+- `results/tables/cleaning_conditions.csv`
 - `results/figures/*.png`
 
 Generated result files are intentionally ignored by git.
