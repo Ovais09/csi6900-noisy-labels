@@ -1,0 +1,88 @@
+# CSI6900 Noisy Labels
+
+Reproducible experiments for lightweight noisy-label detection and cleaning on
+tabular classification datasets.
+
+The pipeline:
+
+1. Load clean tabular datasets.
+2. Split into train/validation/test.
+3. Corrupt only the training labels.
+4. Train clean and noisy baselines.
+5. Detect suspicious labels with a combined score:
+   `0.5 * confidence + 0.3 * disagreement + 0.2 * margin`.
+6. Compare removal and relabeling against the noisy baseline.
+7. Save metrics, summary tables, and figures.
+
+## Project Structure
+
+```text
+configs/                 Experiment matrix configuration
+datasets/                Optional raw/processed external data
+results/tables/          Generated CSV outputs
+results/figures/         Generated plots
+scripts/                 Runnable experiment scripts
+src/                     Reusable project code
+tests/                   Smoke and regression tests
+```
+
+## Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Quick Verification
+
+Run one small experiment combination:
+
+```bash
+python scripts/run_cleaning_experiments.py --quick --output results/tables/quick_experiment_results.csv
+python scripts/make_summary_tables.py --input results/tables/quick_experiment_results.csv --output results/tables/quick_summary_results.csv
+python scripts/make_plots.py --input results/tables/quick_experiment_results.csv --output-dir results/figures/quick
+```
+
+Run tests:
+
+```bash
+pytest -q
+```
+
+## Full Experiment
+
+The default matrix is defined in `configs/experiment_config.yaml`:
+
+- Datasets: Breast Cancer, Wine, Digits
+- Models: logistic regression, random forest, histogram gradient boosting
+- Noise types: symmetric, class-dependent
+- Noise rates: 10%, 20%, 30%, 40%
+- Seeds: 42, 123, 999, 2026
+
+Run:
+
+```bash
+python scripts/run_cleaning_experiments.py
+python scripts/make_summary_tables.py
+python scripts/make_plots.py
+```
+
+Main outputs:
+
+- `results/tables/main_experiment_results.csv`
+- `results/tables/summary_results.csv`
+- `results/figures/*.png`
+
+Generated result files are intentionally ignored by git.
+
+## Done Criteria
+
+- Three datasets run successfully.
+- Three baseline models run successfully.
+- Symmetric and class-dependent noise are tested.
+- Four noise rates are tested.
+- Multiple random seeds are averaged.
+- Clean, noisy, remove, and relabel conditions are saved.
+- Classification metrics and detection metrics are saved.
+- Summary CSV tables and plots are generated for the report.
