@@ -11,6 +11,7 @@ from src.cleaning.detectors import (
     confidence_scores,
     disagreement_scores,
     margin_scores,
+    suspicious_scores,
 )
 from src.data.load_datasets import load_dataset
 from src.data.preprocessing import make_train_val_test_split
@@ -45,6 +46,30 @@ def test_select_top_k_suspicious_uses_requested_fraction():
     suspicious_mask = select_top_k_suspicious(scores, fraction=0.4)
 
     assert suspicious_mask.tolist() == [False, True, False, True, False]
+
+
+def test_named_suspicious_score_dispatcher_matches_supported_methods():
+    dataset = load_dataset("wine")
+    X_train, _, _, y_train, _, _ = make_train_val_test_split(
+        dataset.X,
+        dataset.y,
+        random_state=42,
+    )
+    model = get_baseline_models(random_state=42)["logistic_regression"]
+
+    for detector in ("combined", "confidence", "disagreement", "margin"):
+        scores = suspicious_scores(
+            model,
+            X_train,
+            y_train,
+            detector=detector,
+            cv=3,
+            random_state=42,
+        )
+        assert scores.shape == (len(y_train),)
+
+    with pytest.raises(ValueError):
+        suspicious_scores(model, X_train, y_train, detector="unknown", cv=3)
 
 
 def test_select_top_k_suspicious_validates_fraction():

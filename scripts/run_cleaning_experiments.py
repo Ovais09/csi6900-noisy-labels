@@ -54,6 +54,7 @@ def main():
 
     output_path = args.output or config["output"]["results_csv"]
     cv_folds = int(config.get("cv_folds", 5))
+    detector_methods = config.get("detectors", ["combined"])
     all_results = []
 
     combinations = product(
@@ -72,6 +73,7 @@ def main():
             f"noise_type={noise_type}, "
             f"noise_rate={noise_rate}, "
             f"model={model}, "
+            f"detectors={','.join(detector_methods)}, "
             f"seed={seed}"
         )
 
@@ -82,6 +84,7 @@ def main():
             model_name=model,
             random_state=int(seed),
             cv_folds=cv_folds,
+            detector_methods=detector_methods,
         )
         all_results.append(result)
 

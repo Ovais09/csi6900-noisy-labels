@@ -18,6 +18,12 @@ models:
   - random_forest
   - hist_gradient_boosting
 
+detectors:
+  - combined
+  - confidence
+  - disagreement
+  - margin
+
 seeds:
   - 42
   - 123

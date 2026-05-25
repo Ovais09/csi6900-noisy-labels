@@ -5,6 +5,9 @@ from sklearn.base import clone
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
 
+SUPPORTED_DETECTORS = ("combined", "confidence", "disagreement", "margin")
+
+
 def _make_cv(y_train, cv: int, random_state: int) -> StratifiedKFold:
     y_array = np.asarray(y_train)
     _, counts = np.unique(y_array, return_counts=True)
@@ -111,4 +114,66 @@ def combined_suspicious_scores(
         confidence_weight * confidence
         + disagreement_weight * disagreement
         + margin_weight * margin_suspiciousness
+    )
+
+
+def suspicious_scores(
+    model,
+    X_train,
+    y_train,
+    detector: str = "combined",
+    cv: int = 5,
+    random_state: int = 42,
+):
+    """Return suspiciousness scores for a named detector.
+
+    Supported detectors are:
+
+    - ``combined``: confidence + cross-validated disagreement + margin.
+    - ``confidence``: low probability assigned to the observed label.
+    - ``disagreement``: cross-validated predicted label differs from observed label.
+    - ``margin``: low top-vs-second probability margin.
+    """
+
+    normalized_detector = detector.lower()
+
+    if normalized_detector == "combined":
+        return combined_suspicious_scores(
+            model,
+            X_train,
+            y_train,
+            cv=cv,
+            random_state=random_state,
+        )
+
+    if normalized_detector == "confidence":
+        return confidence_scores(
+            model,
+            X_train,
+            y_train,
+            cv=cv,
+            random_state=random_state,
+        )
+
+    if normalized_detector == "disagreement":
+        return disagreement_scores(
+            model,
+            X_train,
+            y_train,
+            cv=cv,
+            random_state=random_state,
+        )
+
+    if normalized_detector == "margin":
+        return margin_scores(
+            model,
+            X_train,
+            y_train,
+            cv=cv,
+            random_state=random_state,
+        )
+
+    raise ValueError(
+        f"Unknown detector: {detector}. "
+        f"Supported detectors are: {', '.join(SUPPORTED_DETECTORS)}"
     )

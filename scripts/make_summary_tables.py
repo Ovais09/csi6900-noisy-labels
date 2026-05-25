@@ -31,7 +31,17 @@ def parse_args():
 def main():
     args = parse_args()
     df = pd.read_csv(args.input)
-    group_cols = ["dataset", "noise_type", "noise_rate", "model", "condition"]
+    if "detector" not in df.columns:
+        df["detector"] = "combined"
+
+    group_cols = [
+        "dataset",
+        "noise_type",
+        "noise_rate",
+        "model",
+        "condition",
+        "detector",
+    ]
 
     summary = (
         df.groupby(group_cols, dropna=False)
