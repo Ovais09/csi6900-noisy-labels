@@ -13,7 +13,7 @@ The pipeline:
    detector scores. The combined score is
    `0.5 * confidence + 0.3 * disagreement + 0.2 * margin`.
 6. Compare removal and relabeling against the noisy baseline.
-7. Save metrics, summary tables, and figures.
+7. Save metrics, summary tables, validation reports, analysis tables, and figures.
 
 ## Project Structure
 
@@ -91,7 +91,7 @@ docker run --rm \
   -v "$PWD/datasets:/app/datasets" \
   -v "$PWD/results:/app/results" \
   csi6900-noisy-labels \
-  bash -lc "python scripts/download_external_datasets.py && python scripts/run_cleaning_experiments.py && python scripts/make_summary_tables.py && python scripts/make_plots.py && python scripts/make_metadata_tables.py"
+  bash -lc "python scripts/download_external_datasets.py && python scripts/run_cleaning_experiments.py && python scripts/make_summary_tables.py && python scripts/make_analysis_tables.py && python scripts/make_plots.py && python scripts/make_metadata_tables.py && python scripts/validate_results.py"
 ```
 
 ## Quick Verification
@@ -169,8 +169,10 @@ Run:
 ```bash
 python scripts/run_cleaning_experiments.py
 python scripts/make_summary_tables.py
+python scripts/make_analysis_tables.py
 python scripts/make_plots.py
 python scripts/make_metadata_tables.py
+python scripts/validate_results.py
 ```
 
 Main outputs:
@@ -182,7 +184,14 @@ Main outputs:
 - `results/tables/noise_settings.csv`
 - `results/tables/detector_methods.csv`
 - `results/tables/cleaning_conditions.csv`
+- `results/tables/validation_report.csv`
+- `results/tables/analysis/*.csv`
 - `results/figures/*.png`
+
+`scripts/validate_results.py` checks the saved CSV against
+`configs/experiment_config.yaml`. It fails loudly if combinations are missing,
+row counts are wrong, duplicate result rows exist, or metric columns contain
+invalid values.
 
 Generated result files are intentionally ignored by git.
 
