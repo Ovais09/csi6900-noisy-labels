@@ -45,6 +45,12 @@ python scripts/make_summary_tables.py --input results/tables/quick_experiment_re
 python scripts/make_plots.py --input results/tables/quick_experiment_results.csv --output-dir results/figures/quick
 ```
 
+Export the built-in datasets as local processed CSV files:
+
+```bash
+python scripts/export_sklearn_datasets.py
+```
+
 Run tests:
 
 ```bash
