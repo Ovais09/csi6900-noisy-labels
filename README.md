@@ -84,6 +84,16 @@ docker run --rm \
   python scripts/run_cleaning_experiments.py --quick --output results/tables/docker_quick_results.csv
 ```
 
+Run the quick end-to-end pipeline in the container:
+
+```bash
+docker run --rm \
+  -v "$PWD/datasets:/app/datasets" \
+  -v "$PWD/results:/app/results" \
+  csi6900-noisy-labels \
+  python scripts/run_full_pipeline.py --quick --results results/tables/docker_pipeline_quick_results.csv --figure-dir results/figures/docker_pipeline_quick
+```
+
 Run the full training/results pipeline in the container:
 
 ```bash
@@ -91,7 +101,7 @@ docker run --rm \
   -v "$PWD/datasets:/app/datasets" \
   -v "$PWD/results:/app/results" \
   csi6900-noisy-labels \
-  bash -lc "python scripts/download_external_datasets.py && python scripts/run_cleaning_experiments.py && python scripts/make_summary_tables.py && python scripts/make_analysis_tables.py && python scripts/make_plots.py && python scripts/make_metadata_tables.py && python scripts/validate_results.py"
+  python scripts/run_full_pipeline.py
 ```
 
 ## Quick Verification
@@ -167,12 +177,19 @@ The default matrix is defined in `configs/experiment_config.yaml`:
 Run:
 
 ```bash
-python scripts/run_cleaning_experiments.py
-python scripts/make_summary_tables.py
-python scripts/make_analysis_tables.py
-python scripts/make_plots.py
-python scripts/make_metadata_tables.py
-python scripts/validate_results.py
+python scripts/run_full_pipeline.py
+```
+
+To regenerate derived files from an existing result CSV without retraining:
+
+```bash
+python scripts/run_full_pipeline.py --skip-download --skip-training
+```
+
+To print the planned commands without running them:
+
+```bash
+python scripts/run_full_pipeline.py --dry-run
 ```
 
 Main outputs:
