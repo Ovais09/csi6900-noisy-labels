@@ -35,6 +35,43 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Docker
+
+Start Docker Desktop first if you are on macOS.
+
+Build the image:
+
+```bash
+docker build -t csi6900-noisy-labels .
+```
+
+Run tests in the container:
+
+```bash
+docker run --rm csi6900-noisy-labels
+```
+
+Run a quick training check in the container and save outputs back to your local
+repo:
+
+```bash
+docker run --rm \
+  -v "$PWD/datasets:/app/datasets" \
+  -v "$PWD/results:/app/results" \
+  csi6900-noisy-labels \
+  python scripts/run_cleaning_experiments.py --quick --output results/tables/docker_quick_results.csv
+```
+
+Run the full training/results pipeline in the container:
+
+```bash
+docker run --rm \
+  -v "$PWD/datasets:/app/datasets" \
+  -v "$PWD/results:/app/results" \
+  csi6900-noisy-labels \
+  bash -lc "python scripts/download_external_datasets.py && python scripts/run_cleaning_experiments.py && python scripts/make_summary_tables.py && python scripts/make_plots.py && python scripts/make_metadata_tables.py"
+```
+
 ## Quick Verification
 
 Run one small experiment combination:
