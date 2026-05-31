@@ -9,8 +9,10 @@ from src.cleaning.cleaning_methods import (
 from src.cleaning.detectors import (
     combined_suspicious_scores,
     confidence_scores,
+    cross_validated_probabilities,
     disagreement_scores,
     margin_scores,
+    scores_from_probabilities,
     suspicious_scores,
 )
 from src.data.load_datasets import load_dataset
@@ -70,6 +72,36 @@ def test_named_suspicious_score_dispatcher_matches_supported_methods():
 
     with pytest.raises(ValueError):
         suspicious_scores(model, X_train, y_train, detector="unknown", cv=3)
+
+
+def test_scores_from_probabilities_match_standalone_probability_scorers():
+    dataset = load_dataset("wine")
+    X_train, _, _, y_train, _, _ = make_train_val_test_split(
+        dataset.X,
+        dataset.y,
+        random_state=42,
+    )
+    model = get_baseline_models(random_state=42)["logistic_regression"]
+    proba = cross_validated_probabilities(
+        model,
+        X_train,
+        y_train,
+        cv=3,
+        random_state=42,
+    )
+
+    assert np.allclose(
+        scores_from_probabilities(proba, y_train, detector="combined"),
+        combined_suspicious_scores(model, X_train, y_train, cv=3, random_state=42),
+    )
+    assert np.allclose(
+        scores_from_probabilities(proba, y_train, detector="confidence"),
+        confidence_scores(model, X_train, y_train, cv=3, random_state=42),
+    )
+    assert np.allclose(
+        scores_from_probabilities(proba, y_train, detector="margin"),
+        margin_scores(model, X_train, y_train, cv=3, random_state=42),
+    )
 
 
 def test_select_top_k_suspicious_validates_fraction():

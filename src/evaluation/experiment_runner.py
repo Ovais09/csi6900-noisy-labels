@@ -4,11 +4,14 @@ import pandas as pd
 from sklearn.base import clone
 
 from src.cleaning.cleaning_methods import (
-    relabel_suspicious_samples,
     remove_suspicious_samples,
     select_top_k_suspicious,
 )
-from src.cleaning.detectors import suspicious_scores
+from src.cleaning.detectors import (
+    cross_validated_probabilities,
+    predicted_labels_from_probabilities,
+    scores_from_probabilities,
+)
 from src.data.load_datasets import load_dataset
 from src.data.preprocessing import make_train_val_test_split
 from src.evaluation.metrics import classification_metrics, detection_metrics
@@ -154,14 +157,20 @@ def run_single_experiment(
         }
     )
 
+    cv_proba = cross_validated_probabilities(
+        base_model,
+        X_train,
+        y_train_noisy,
+        cv=cv_folds,
+        random_state=random_state,
+    )
+    cv_pred_labels = predicted_labels_from_probabilities(cv_proba, y_train_noisy)
+
     for detector in detector_methods:
-        scores = suspicious_scores(
-            base_model,
-            X_train,
+        scores = scores_from_probabilities(
+            cv_proba,
             y_train_noisy,
             detector=detector,
-            cv=cv_folds,
-            random_state=random_state,
         )
         suspicious_mask = select_top_k_suspicious(scores, fraction=noise_rate)
         det_metrics = detection_metrics(corrupted_mask, suspicious_mask)
@@ -193,14 +202,8 @@ def run_single_experiment(
             }
         )
 
-        y_train_relabel = relabel_suspicious_samples(
-            base_model,
-            X_train,
-            y_train_noisy,
-            suspicious_mask,
-            cv=cv_folds,
-            random_state=random_state,
-        )
+        y_train_relabel = y_train_noisy.copy()
+        y_train_relabel.iloc[suspicious_mask] = cv_pred_labels[suspicious_mask]
         relabel_model = clone(base_model)
         relabel_model.fit(X_train, y_train_relabel)
         relabel_metrics = classification_metrics(relabel_model, X_test, y_test)
