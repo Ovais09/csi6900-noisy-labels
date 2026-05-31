@@ -45,6 +45,23 @@ Build the image:
 docker build -t csi6900-noisy-labels .
 ```
 
+If you see `failed to connect to the docker API at unix:///var/run/docker.sock`,
+the Docker CLI is installed but no Docker backend is running. Fix it with one of:
+
+```bash
+# Docker Desktop option
+brew install --cask docker
+open -a Docker
+docker info
+```
+
+```bash
+# Lightweight Colima option
+brew install colima
+colima start --cpu 4 --memory 8 --disk 40
+docker info
+```
+
 Run tests in the container:
 
 ```bash
