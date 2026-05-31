@@ -62,6 +62,10 @@ colima start --cpu 4 --memory 8 --disk 40
 docker info
 ```
 
+On Apple Silicon, if Docker Desktop shows `Rosetta installation failed`, click
+`Disable Rosetta` in the Docker Desktop prompt. This project uses native ARM64
+images, so Rosetta is not required.
+
 Run tests in the container:
 
 ```bash
