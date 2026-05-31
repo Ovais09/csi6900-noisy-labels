@@ -24,6 +24,7 @@ results/tables/          Generated CSV outputs
 results/figures/         Generated plots
 scripts/                 Runnable experiment scripts
 src/                     Reusable project code
+notebooks/               Interactive Jupyter workflows
 tests/                   Smoke and regression tests
 ```
 
@@ -129,6 +130,27 @@ Run tests:
 
 ```bash
 pytest -q
+```
+
+## Notebook Workflow
+
+The notebooks are interactive entry points on top of the tested Python package.
+They do not replace the `src/` code; they import it so command-line runs,
+Docker runs, and notebook runs all use the same implementation.
+
+- `notebooks/01_data_check.ipynb`: verify dataset loading, class balance, and
+  train/validation/test splits.
+- `notebooks/02_noise_and_detectors.ipynb`: inspect one noisy-label setting,
+  detector scores, suspicious rows, and one full model result.
+- `notebooks/03_run_experiments.ipynb`: run a small interactive experiment
+  matrix, or flip `RUN_FULL_MATRIX = True` to use the YAML config.
+- `notebooks/04_results_analysis.ipynb`: inspect saved results, rank detectors,
+  measure cleaning gains, and save report-friendly analysis tables.
+
+Start Jupyter from the project root:
+
+```bash
+jupyter notebook
 ```
 
 ## Full Experiment
