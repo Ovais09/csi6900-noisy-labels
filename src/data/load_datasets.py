@@ -37,7 +37,7 @@ def load_dataset(name: str) -> DatasetBundle:
     Parameters
     ----------
     name:
-        One of ``breast_cancer``, ``wine``, or ``digits``.
+        One of ``breast_cancer``, ``wine``, ``digits``, or ``dry_bean``.
     """
 
     normalized_name = name.lower()
@@ -62,5 +62,10 @@ def load_dataset(name: str) -> DatasetBundle:
             loader=load_digits,
             task_type="multiclass",
         )
+
+    if normalized_name == "dry_bean":
+        from src.data.external_datasets import load_dry_bean
+
+        return load_dry_bean()
 
     raise ValueError(f"Unknown dataset: {name}")

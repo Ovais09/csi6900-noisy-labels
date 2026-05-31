@@ -51,6 +51,22 @@ Export the built-in datasets as local processed CSV files:
 python scripts/export_sklearn_datasets.py
 ```
 
+Download and prepare the external UCI Dry Bean dataset:
+
+```bash
+python scripts/download_external_datasets.py
+```
+
+Export all supported datasets, including Dry Bean:
+
+```bash
+python scripts/export_sklearn_datasets.py --include-external
+```
+
+Dry Bean is downloaded from the UCI Machine Learning Repository and adds a
+larger real tabular benchmark with 13,611 samples, 16 numeric features, and 7
+classes.
+
 Run tests:
 
 ```bash
@@ -61,7 +77,7 @@ pytest -q
 
 The default matrix is defined in `configs/experiment_config.yaml`:
 
-- Datasets: Breast Cancer, Wine, Digits
+- Datasets: Breast Cancer, Wine, Digits, Dry Bean
 - Models: logistic regression, random forest, histogram gradient boosting
 - Noise types: symmetric, class-dependent
 - Noise rates: 10%, 20%, 30%, 40%
@@ -93,6 +109,7 @@ Generated result files are intentionally ignored by git.
 ## Done Criteria
 
 - Three datasets run successfully.
+- At least one larger external tabular dataset runs successfully.
 - Three baseline models run successfully.
 - Symmetric and class-dependent noise are tested.
 - Four noise rates are tested.

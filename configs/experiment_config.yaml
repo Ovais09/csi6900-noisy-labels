@@ -2,6 +2,7 @@ datasets:
   - breast_cancer
   - wine
   - digits
+  - dry_bean
 
 noise_types:
   - symmetric

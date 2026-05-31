@@ -1,4 +1,4 @@
-"""Export built-in scikit-learn datasets to local processed CSV files."""
+"""Export supported datasets to local processed CSV files."""
 
 import argparse
 import sys
@@ -15,6 +15,7 @@ from src.utils.io import save_dataframe
 
 
 DEFAULT_DATASETS = ("breast_cancer", "wine", "digits")
+EXTERNAL_DATASETS = ("dry_bean",)
 
 
 def export_dataset(dataset_name: str, output_dir) -> dict:
@@ -57,6 +58,11 @@ def parse_args():
         help="Dataset names to export.",
     )
     parser.add_argument(
+        "--include-external",
+        action="store_true",
+        help="Also export external datasets such as UCI Dry Bean.",
+    )
+    parser.add_argument(
         "--output-dir",
         default="datasets/processed",
         help="Directory where CSV files will be written.",
@@ -66,7 +72,11 @@ def parse_args():
 
 def main():
     args = parse_args()
-    manifest = export_datasets(args.datasets, output_dir=args.output_dir)
+    dataset_names = list(args.datasets)
+    if args.include_external:
+        dataset_names.extend(EXTERNAL_DATASETS)
+
+    manifest = export_datasets(dataset_names, output_dir=args.output_dir)
 
     for row in manifest.itertuples(index=False):
         print(

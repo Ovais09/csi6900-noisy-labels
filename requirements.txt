@@ -1,6 +1,7 @@
 numpy<2
 pandas
 scikit-learn
+scipy
 matplotlib
 seaborn
 pyyaml
