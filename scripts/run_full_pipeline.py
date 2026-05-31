@@ -77,6 +77,46 @@ def build_pipeline_commands(args):
             )
         )
 
+    artifact_args = [
+        "--dataset",
+        args.artifact_dataset,
+        "--model",
+        args.artifact_model,
+        "--noise-type",
+        args.artifact_noise_type,
+        "--noise-rate",
+        str(args.artifact_noise_rate),
+        "--detector",
+        args.artifact_detector,
+        "--seed",
+        str(args.artifact_seed),
+        "--cv-folds",
+        str(args.artifact_cv_folds),
+    ]
+
+    if args.save_final_models and not args.make_model_diagnostics:
+        commands.append(
+            _python_command(
+                "scripts/train_final_models.py",
+                *artifact_args,
+                "--output-dir",
+                args.model_output_dir,
+            )
+        )
+
+    if args.make_model_diagnostics:
+        commands.append(
+            _python_command(
+                "scripts/make_model_diagnostics.py",
+                *artifact_args,
+                "--table-dir",
+                args.diagnostic_table_dir,
+                "--figure-dir",
+                args.diagnostic_figure_dir,
+                *(["--save-models", "--model-output-dir", args.model_output_dir] if args.save_final_models else []),
+            )
+        )
+
     return commands
 
 
@@ -136,6 +176,32 @@ def parse_args():
         "--dry-run",
         action="store_true",
         help="Print commands without executing them.",
+    )
+    parser.add_argument(
+        "--save-final-models",
+        action="store_true",
+        help="Train and save final fitted models for one representative setting.",
+    )
+    parser.add_argument(
+        "--make-model-diagnostics",
+        action="store_true",
+        help="Generate confusion matrices, ROC curves, PR curves, and class reports.",
+    )
+    parser.add_argument("--artifact-dataset", default="dry_bean")
+    parser.add_argument("--artifact-model", default="random_forest")
+    parser.add_argument("--artifact-noise-type", default="symmetric")
+    parser.add_argument("--artifact-noise-rate", type=float, default=0.2)
+    parser.add_argument("--artifact-detector", default="confidence")
+    parser.add_argument("--artifact-seed", type=int, default=42)
+    parser.add_argument("--artifact-cv-folds", type=int, default=5)
+    parser.add_argument("--model-output-dir", default="results/models")
+    parser.add_argument(
+        "--diagnostic-table-dir",
+        default="results/tables/model_diagnostics",
+    )
+    parser.add_argument(
+        "--diagnostic-figure-dir",
+        default="results/figures/model_diagnostics",
     )
     return parser.parse_args()
 

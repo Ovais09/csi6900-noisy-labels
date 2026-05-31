@@ -83,3 +83,46 @@ def test_run_full_pipeline_quick_mode_skips_full_validation(monkeypatch):
     assert any("--quick" in command for command in flattened)
     assert any("make_analysis_tables.py" in command for command in flattened)
     assert not any("validate_results.py" in command for command in flattened)
+
+
+def test_run_full_pipeline_can_include_model_artifacts(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "run_full_pipeline.py",
+            "--quick",
+            "--skip-training",
+            "--save-final-models",
+            "--artifact-dataset",
+            "breast_cancer",
+            "--artifact-model",
+            "logistic_regression",
+        ],
+    )
+    args = parse_args()
+    commands = build_pipeline_commands(args)
+    flattened = [" ".join(command) for command in commands]
+
+    assert any("train_final_models.py" in command for command in flattened)
+    assert any("--dataset breast_cancer" in command for command in flattened)
+    assert any("--model logistic_regression" in command for command in flattened)
+
+
+def test_run_full_pipeline_combines_diagnostics_and_model_saving(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "run_full_pipeline.py",
+            "--quick",
+            "--skip-training",
+            "--save-final-models",
+            "--make-model-diagnostics",
+        ],
+    )
+    args = parse_args()
+    commands = build_pipeline_commands(args)
+    flattened = [" ".join(command) for command in commands]
+
+    assert any("make_model_diagnostics.py" in command for command in flattened)
+    assert any("--save-models" in command for command in flattened)
+    assert not any("train_final_models.py" in command for command in flattened)

@@ -11,9 +11,11 @@ datasets/processed/*
 results/tables/*
 results/figures/*
 results/logs/*
+results/models/*
 
 !datasets/raw/.gitkeep
 !datasets/processed/.gitkeep
 !results/tables/.gitkeep
 !results/figures/.gitkeep
 !results/logs/.gitkeep
+!results/models/.gitkeep

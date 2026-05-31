@@ -192,6 +192,22 @@ To print the planned commands without running them:
 python scripts/run_full_pipeline.py --dry-run
 ```
 
+To save fitted final models and create model-level diagnostics for one
+representative setting:
+
+```bash
+python scripts/run_full_pipeline.py \
+  --skip-download \
+  --skip-training \
+  --save-final-models \
+  --make-model-diagnostics \
+  --artifact-dataset dry_bean \
+  --artifact-model random_forest \
+  --artifact-noise-type symmetric \
+  --artifact-noise-rate 0.2 \
+  --artifact-detector confidence
+```
+
 Main outputs:
 
 - `results/tables/main_experiment_results.csv`
@@ -203,12 +219,23 @@ Main outputs:
 - `results/tables/cleaning_conditions.csv`
 - `results/tables/validation_report.csv`
 - `results/tables/analysis/*.csv`
+- `results/tables/model_diagnostics/*.csv`
 - `results/figures/*.png`
+- `results/figures/model_diagnostics/*.png`
+- `results/models/**/clean_upper_bound.joblib`
+- `results/models/**/noisy_baseline.joblib`
+- `results/models/**/remove_suspicious.joblib`
+- `results/models/**/relabel_suspicious.joblib`
 
 `scripts/validate_results.py` checks the saved CSV against
 `configs/experiment_config.yaml`. It fails loudly if combinations are missing,
 row counts are wrong, duplicate result rows exist, or metric columns contain
 invalid values.
+
+`scripts/make_model_diagnostics.py` retrains one selected setting and saves
+confusion matrices, ROC curves, precision-recall curves, macro-F1 summaries,
+and per-class classification reports. `scripts/train_final_models.py` saves the
+four fitted comparison models for that same setting.
 
 Generated result files are intentionally ignored by git.
 
