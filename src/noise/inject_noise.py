@@ -4,6 +4,9 @@ import numpy as np
 import pandas as pd
 
 
+SUPPORTED_NOISE_TYPES = ("symmetric", "class_dependent")
+
+
 def _validate_noise_rate(noise_rate: float) -> None:
     if not 0.0 <= noise_rate <= 1.0:
         raise ValueError(f"noise_rate must be between 0 and 1, got {noise_rate}")

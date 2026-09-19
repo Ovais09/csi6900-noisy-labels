@@ -4,7 +4,9 @@ import argparse
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+from scipy.stats import wilcoxon
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -14,6 +16,7 @@ from src.utils.io import save_dataframe
 
 
 BASE_COLUMNS = ["dataset", "noise_type", "noise_rate", "model", "random_state"]
+SETTING_COLUMNS = ["dataset", "noise_type", "noise_rate", "model"]
 
 
 def condition_summary(df: pd.DataFrame) -> pd.DataFrame:
@@ -39,18 +42,53 @@ def detector_ranking(df: pd.DataFrame) -> pd.DataFrame:
     """Rank detector variants by detection quality and downstream accuracy."""
 
     cleaning_df = df[df["condition"].isin(["remove_suspicious", "relabel_suspicious"])]
-    return (
-        cleaning_df.groupby(["detector"], dropna=False)
+    detection_df = cleaning_df.drop_duplicates(BASE_COLUMNS + ["detector"])
+    detection = (
+        detection_df.groupby(["detector"], dropna=False)
         .agg(
             det_precision_mean=("det_precision", "mean"),
             det_recall_mean=("det_recall", "mean"),
             det_f1_mean=("det_f1", "mean"),
-            accuracy_mean=("accuracy", "mean"),
-            f1_macro_mean=("f1_macro", "mean"),
-            rows=("accuracy", "size"),
+            detection_evaluations=("det_f1", "size"),
         )
         .reset_index()
+    )
+    downstream = (
+        cleaning_df.groupby(["detector"], dropna=False)
+        .agg(
+            accuracy_mean=("accuracy", "mean"),
+            f1_macro_mean=("f1_macro", "mean"),
+            downstream_rows=("accuracy", "size"),
+        )
+        .reset_index()
+    )
+    return (
+        detection.merge(downstream, on="detector", validate="one_to_one")
         .sort_values(["det_f1_mean", "accuracy_mean"], ascending=False)
+    )
+
+
+def detector_breakdown(df: pd.DataFrame) -> pd.DataFrame:
+    """Summarize detection metrics without duplicate remove/relabel rows."""
+
+    cleaning_df = df[df["condition"].isin(["remove_suspicious", "relabel_suspicious"])]
+    detection_df = cleaning_df.drop_duplicates(BASE_COLUMNS + ["detector"])
+    return (
+        detection_df.groupby(["dataset", "noise_type", "detector"], dropna=False)
+        .agg(
+            det_precision_mean=("det_precision", "mean"),
+            det_precision_std=("det_precision", "std"),
+            det_recall_mean=("det_recall", "mean"),
+            det_recall_std=("det_recall", "std"),
+            det_f1_mean=("det_f1", "mean"),
+            det_f1_std=("det_f1", "std"),
+            evaluations=("det_f1", "size"),
+        )
+        .reset_index()
+        .sort_values(
+            ["dataset", "noise_type", "det_f1_mean"],
+            ascending=[True, True, False],
+        )
     )
 
 
@@ -140,15 +178,148 @@ def best_cleaning_by_setting(df: pd.DataFrame) -> pd.DataFrame:
     return order.groupby(rank_cols, as_index=False).head(1).reset_index(drop=True)
 
 
+def _bootstrap_mean_interval(values, rng, n_resamples: int = 5000):
+    values = np.asarray(values, dtype=float)
+    if len(values) == 0:
+        return np.nan, np.nan
+    samples = rng.choice(values, size=(n_resamples, len(values)), replace=True)
+    means = samples.mean(axis=1)
+    return tuple(np.quantile(means, [0.025, 0.975]))
+
+
+def _holm_adjust(p_values):
+    """Return Holm family-wise adjusted p-values in original row order."""
+
+    p_values = np.asarray(p_values, dtype=float)
+    order = np.argsort(p_values)
+    adjusted_sorted = np.empty(len(p_values), dtype=float)
+    running_max = 0.0
+
+    for rank, index in enumerate(order):
+        adjusted = min(1.0, (len(p_values) - rank) * p_values[index])
+        running_max = max(running_max, adjusted)
+        adjusted_sorted[rank] = running_max
+
+    adjusted = np.empty(len(p_values), dtype=float)
+    adjusted[order] = adjusted_sorted
+    return adjusted
+
+
+def paired_cleaning_comparisons(
+    df: pd.DataFrame,
+    n_resamples: int = 5000,
+    random_state: int = 2026,
+) -> pd.DataFrame:
+    """Compare cleaning conditions with noisy baselines using paired runs."""
+
+    rng = np.random.default_rng(random_state)
+    scopes = [("all", df)] + [
+        (dataset, df[df["dataset"] == dataset])
+        for dataset in sorted(df["dataset"].unique())
+    ]
+    rows = []
+
+    for scope, scoped_df in scopes:
+        noisy = scoped_df[scoped_df["condition"] == "noisy_baseline"]
+        cleaned = scoped_df[
+            scoped_df["condition"].isin(["remove_suspicious", "relabel_suspicious"])
+        ]
+
+        for metric in ("accuracy", "f1_macro", "auroc"):
+            baseline = (
+                noisy.groupby(SETTING_COLUMNS, dropna=False)
+                .agg(
+                    baseline_value=(metric, "mean"),
+                    baseline_seeds=("random_state", "nunique"),
+                )
+                .reset_index()
+            )
+            for (condition, detector), group in cleaned.groupby(
+                ["condition", "detector"], sort=True
+            ):
+                cleaned_settings = (
+                    group.groupby(SETTING_COLUMNS, dropna=False)
+                    .agg(
+                        cleaned_value=(metric, "mean"),
+                        cleaned_seeds=("random_state", "nunique"),
+                    )
+                    .reset_index()
+                )
+                paired = cleaned_settings.merge(
+                    baseline,
+                    on=SETTING_COLUMNS,
+                    how="inner",
+                    validate="one_to_one",
+                )
+                if not (
+                    paired["cleaned_seeds"] == paired["baseline_seeds"]
+                ).all():
+                    raise ValueError(
+                        "Cleaning and baseline rows have different seed coverage."
+                    )
+                differences = (
+                    paired["cleaned_value"] - paired["baseline_value"]
+                ).dropna().to_numpy()
+                if len(differences) == 0:
+                    continue
+
+                ci_low, ci_high = _bootstrap_mean_interval(
+                    differences,
+                    rng=rng,
+                    n_resamples=n_resamples,
+                )
+                if np.allclose(differences, 0.0):
+                    p_value = 1.0
+                else:
+                    p_value = float(wilcoxon(differences).pvalue)
+
+                std = differences.std(ddof=1) if len(differences) > 1 else 0.0
+                effect_dz = differences.mean() / std if std > 0 else 0.0
+                tolerance = 1e-12
+                rows.append(
+                    {
+                        "scope": scope,
+                        "metric": metric,
+                        "condition": condition,
+                        "detector": detector,
+                        "settings": len(differences),
+                        "seeds_per_setting_min": paired["baseline_seeds"].min(),
+                        "seeds_per_setting_max": paired["baseline_seeds"].max(),
+                        "baseline_mean": paired["baseline_value"].mean(),
+                        "cleaned_mean": paired["cleaned_value"].mean(),
+                        "mean_gain": differences.mean(),
+                        "median_gain": np.median(differences),
+                        "ci95_low": ci_low,
+                        "ci95_high": ci_high,
+                        "win_rate": np.mean(differences > tolerance),
+                        "tie_rate": np.mean(np.abs(differences) <= tolerance),
+                        "loss_rate": np.mean(differences < -tolerance),
+                        "paired_effect_dz": effect_dz,
+                        "wilcoxon_p": p_value,
+                    }
+                )
+
+    comparisons = pd.DataFrame(rows)
+    comparisons["wilcoxon_p_holm"] = comparisons.groupby(
+        ["scope", "metric"], group_keys=False
+    )["wilcoxon_p"].transform(_holm_adjust)
+    return comparisons.sort_values(
+        ["scope", "metric", "mean_gain"],
+        ascending=[True, True, False],
+    ).reset_index(drop=True)
+
+
 def make_all_analysis_tables(df: pd.DataFrame):
     """Return all report-oriented analysis tables."""
 
     return {
         "condition_summary": condition_summary(df),
         "detector_ranking": detector_ranking(df),
+        "detector_breakdown": detector_breakdown(df),
         "cleaning_gain_summary": cleaning_gain_summary(df),
         "noise_impact_summary": noise_impact_summary(df),
         "best_cleaning_by_setting": best_cleaning_by_setting(df),
+        "paired_cleaning_comparisons": paired_cleaning_comparisons(df),
     }
 
 

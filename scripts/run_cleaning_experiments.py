@@ -12,7 +12,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.evaluation.experiment_runner import run_single_experiment
-from src.utils.io import load_yaml, save_dataframe
+from src.evaluation.result_contract import COMBO_COLUMNS, combo_key, complete_combo_keys
+from src.utils.config import load_experiment_config
+from src.utils.io import save_dataframe, save_dataframe_atomic
 from src.utils.seeds import set_global_seed
 
 
@@ -24,6 +26,19 @@ def _quick_config(config):
     quick["models"] = config["models"][:1]
     quick["seeds"] = config["seeds"][:1]
     return quick
+
+
+def _result_output_path(config, requested_path=None, quick: bool = False):
+    if requested_path:
+        return requested_path
+    configured_path = Path(config["output"]["results_csv"])
+    if quick:
+        return str(
+            configured_path.with_name(
+                f"{configured_path.stem}_quick{configured_path.suffix}"
+            )
+        )
+    return str(configured_path)
 
 
 def parse_args():
@@ -52,45 +67,80 @@ def parse_args():
 
 
 def _combo_key(dataset, noise_type, noise_rate, model, seed):
-    return (dataset, noise_type, float(noise_rate), model, int(seed))
+    return combo_key(dataset, noise_type, noise_rate, model, seed)
 
 
-def _completed_keys(output_path):
+def _completed_keys(output_path, detector_methods):
     path = Path(output_path)
     if not path.exists():
         return set()
 
     df = pd.read_csv(path)
-    required_cols = {"dataset", "noise_type", "noise_rate", "model", "random_state"}
-    if not required_cols.issubset(df.columns):
+    return complete_combo_keys(df, detector_methods)
+
+
+def _prepare_resume_file(output_path, detector_methods):
+    """Drop incomplete combinations before safely resuming a result file."""
+
+    path = Path(output_path)
+    if not path.exists():
         return set()
 
-    return {
-        _combo_key(row.dataset, row.noise_type, row.noise_rate, row.model, row.random_state)
-        for row in df[list(required_cols)].drop_duplicates().itertuples(index=False)
-    }
+    existing = pd.read_csv(path)
+    completed = complete_combo_keys(existing, detector_methods)
+    row_keys = existing.loc[:, list(COMBO_COLUMNS)].apply(
+        lambda row: combo_key(*row),
+        axis=1,
+    )
+    retained = existing.loc[row_keys.isin(completed)].copy()
+
+    removed_rows = len(existing) - len(retained)
+    if removed_rows:
+        print(
+            f"Removed {removed_rows} incomplete result rows before resuming "
+            f"{output_path}"
+        )
+        save_dataframe_atomic(retained, path)
+
+    return completed
 
 
 def _append_results(result, output_path):
+    """Atomically append one complete experiment combination."""
+
     path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    result.to_csv(path, mode="a", header=not path.exists(), index=False)
+    if path.exists():
+        existing = pd.read_csv(path)
+        combined = (
+            result.reset_index(drop=True)
+            if existing.empty
+            else pd.concat([existing, result], ignore_index=True)
+        )
+    else:
+        combined = result.reset_index(drop=True)
+    save_dataframe_atomic(combined, path)
 
 
 def main():
     args = parse_args()
-    config = load_yaml(args.config)
+    config = load_experiment_config(args.config)
     if args.quick:
         config = _quick_config(config)
 
-    output_path = args.output or config["output"]["results_csv"]
+    output_path = _result_output_path(
+        config,
+        requested_path=args.output,
+        quick=args.quick,
+    )
     cv_folds = int(config.get("cv_folds", 5))
     detector_methods = config.get("detectors", ["combined"])
     output_file = Path(output_path)
     if output_file.exists() and not args.resume:
         output_file.unlink()
 
-    completed_keys = _completed_keys(output_path) if args.resume else set()
+    completed_keys = (
+        _prepare_resume_file(output_path, detector_methods) if args.resume else set()
+    )
 
     combinations = product(
         config["datasets"],

@@ -11,7 +11,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.data.load_datasets import load_dataset
-from src.utils.io import load_yaml, save_dataframe
+from src.utils.config import load_experiment_config
+from src.utils.io import save_dataframe
 
 
 MODEL_ROWS = [
@@ -116,7 +117,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    config = load_yaml(args.config)
+    config = load_experiment_config(args.config)
     output_dir = Path(args.output_dir)
 
     tables = {

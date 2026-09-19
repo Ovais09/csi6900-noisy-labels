@@ -13,7 +13,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils.io import load_yaml, save_dataframe
+from src.utils.config import load_experiment_config
+from src.utils.io import save_dataframe
+from src.evaluation.result_contract import (
+    BASE_CONDITIONS,
+    CLEANING_CONDITIONS,
+    COMBO_COLUMNS,
+    ROW_KEY_COLUMNS,
+    combo_key,
+    expected_row_signatures,
+)
 
 
 REQUIRED_COLUMNS = {
@@ -38,10 +47,6 @@ REQUIRED_COLUMNS = {
 
 CLASSIFICATION_METRICS = ("accuracy", "f1_macro", "auroc")
 DETECTION_METRICS = ("det_precision", "det_recall", "det_f1")
-BASE_CONDITIONS = ("clean_upper_bound", "noisy_baseline")
-CLEANING_CONDITIONS = ("remove_suspicious", "relabel_suspicious")
-
-
 @dataclass(frozen=True)
 class ValidationIssue:
     status: str
@@ -50,7 +55,7 @@ class ValidationIssue:
 
 
 def _combo_key(dataset, noise_type, noise_rate, model, seed):
-    return (dataset, noise_type, float(noise_rate), model, int(seed))
+    return combo_key(dataset, noise_type, noise_rate, model, seed)
 
 
 def expected_combo_keys(config):
@@ -72,7 +77,11 @@ def _issue(status, check, detail):
     return ValidationIssue(status=status, check=check, detail=detail)
 
 
-def _rate_is_valid(series):
+def _rate_is_valid(series, allow_na: bool = False):
+    if series.empty:
+        return False
+    if not allow_na and series.isna().any():
+        return False
     valid = series.dropna().between(0.0, 1.0)
     return bool(valid.all())
 
@@ -98,7 +107,7 @@ def validate_results(df: pd.DataFrame, config: dict):
         _issue("PASS", "required_columns", f"Found {len(REQUIRED_COLUMNS)} columns")
     )
 
-    combo_cols = ["dataset", "noise_type", "noise_rate", "model", "random_state"]
+    combo_cols = list(COMBO_COLUMNS)
     actual_keys = {
         _combo_key(row.dataset, row.noise_type, row.noise_rate, row.model, row.random_state)
         for row in df[combo_cols].drop_duplicates().itertuples(index=False)
@@ -125,7 +134,7 @@ def validate_results(df: pd.DataFrame, config: dict):
             _issue("FAIL", "row_count", f"expected={expected_rows}, actual={len(df)}")
         )
 
-    row_key_cols = combo_cols + ["condition", "detector"]
+    row_key_cols = list(ROW_KEY_COLUMNS)
     duplicate_count = int(df.duplicated(row_key_cols).sum())
     if duplicate_count:
         issues.append(_issue("FAIL", "duplicate_rows", f"{duplicate_count} duplicates"))
@@ -177,6 +186,29 @@ def validate_results(df: pd.DataFrame, config: dict):
             )
         )
 
+    expected_signatures = expected_row_signatures(detectors)
+    bad_contracts = 0
+    for _, group in df.groupby(combo_cols, sort=False, dropna=False):
+        signatures = list(zip(group["condition"], group["detector"]))
+        if len(signatures) != len(expected_signatures):
+            bad_contracts += 1
+            continue
+        if len(signatures) != len(set(signatures)):
+            bad_contracts += 1
+            continue
+        if set(signatures) != expected_signatures:
+            bad_contracts += 1
+
+    issues.append(
+        _issue(
+            "PASS" if bad_contracts == 0 else "FAIL",
+            "row_contract",
+            "Every combination has the exact condition/detector rows"
+            if bad_contracts == 0
+            else f"{bad_contracts} combinations violate the row contract",
+        )
+    )
+
     for metric in CLASSIFICATION_METRICS:
         if metric == "auroc":
             valid = df[metric].dropna().between(0.0, 1.0).all()
@@ -205,6 +237,18 @@ def validate_results(df: pd.DataFrame, config: dict):
     suspicious_ok = bool(base_rows["n_suspicious"].isna().all()) and bool(
         cleaning_rows["n_suspicious"].notna().all()
     )
+
+    expected_suspicious = (cleaning_rows["noise_rate"] * cleaning_rows["n_train"]).round()
+    suspicious_count_ok = bool(
+        (cleaning_rows["n_suspicious"] == expected_suspicious).all()
+    )
+    issues.append(
+        _issue(
+            "PASS" if suspicious_count_ok else "FAIL",
+            "n_suspicious_count",
+            "Cleaning rows select the configured fraction of training rows",
+        )
+    )
     issues.append(
         _issue(
             "PASS" if suspicious_ok else "FAIL",
@@ -230,6 +274,49 @@ def validate_results(df: pd.DataFrame, config: dict):
             "PASS" if train_test_ok else "FAIL",
             "split_sizes",
             "n_train and n_test are positive",
+        )
+    )
+
+    count_columns = ["n_train", "n_test", "n_corrupted"]
+    inconsistent_counts = (
+        df.groupby(combo_cols, dropna=False)[count_columns].nunique(dropna=False) > 1
+    ).any(axis=1)
+    issues.append(
+        _issue(
+            "PASS" if not inconsistent_counts.any() else "FAIL",
+            "combo_count_consistency",
+            "Train, test, and corrupted counts agree within each combination",
+        )
+    )
+
+    detector_group_cols = combo_cols + ["detector"]
+    detector_consistency = (
+        cleaning_rows.groupby(detector_group_cols, dropna=False)[
+            ["n_suspicious", *DETECTION_METRICS]
+        ].nunique(dropna=False)
+        > 1
+    ).any(axis=1)
+    issues.append(
+        _issue(
+            "PASS" if not detector_consistency.any() else "FAIL",
+            "detector_metric_consistency",
+            "Remove and relabel rows share detector metrics",
+        )
+    )
+
+    clean_rows = df[df["condition"] == "clean_upper_bound"]
+    clean_group_cols = ["dataset", "model", "random_state"]
+    clean_invariance = (
+        clean_rows.groupby(clean_group_cols, dropna=False)[
+            ["accuracy", "f1_macro", "auroc", "n_train", "n_test"]
+        ].nunique(dropna=False)
+        > 1
+    ).any(axis=1)
+    issues.append(
+        _issue(
+            "PASS" if not clean_invariance.any() else "FAIL",
+            "clean_baseline_invariance",
+            "Clean baselines are invariant to noise type and rate",
         )
     )
 
@@ -282,7 +369,7 @@ def parse_args():
 def main():
     args = parse_args()
     df = pd.read_csv(args.results)
-    config = load_yaml(args.config)
+    config = load_experiment_config(args.config)
 
     issues = validate_results(df, config)
     report = validation_report(issues)

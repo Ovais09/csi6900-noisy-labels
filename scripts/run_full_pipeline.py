@@ -6,6 +6,10 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.utils.config import load_experiment_config
 
 
 def _python_command(*args):
@@ -15,7 +19,19 @@ def _python_command(*args):
 def build_pipeline_commands(args):
     """Build ordered subprocess commands for the full project pipeline."""
 
+    config = load_experiment_config(args.config)
     commands = []
+
+    if args.quick:
+        results_path = args.results or "results/tables/quick_pipeline_results.csv"
+        summary_path = args.summary or "results/tables/quick_pipeline_summary.csv"
+        analysis_dir = args.analysis_dir or "results/tables/quick_pipeline_analysis"
+        figure_dir = args.figure_dir or "results/figures/quick_pipeline"
+    else:
+        results_path = args.results or config["output"]["results_csv"]
+        summary_path = args.summary or config["output"]["summary_csv"]
+        analysis_dir = args.analysis_dir or "results/tables/analysis"
+        figure_dir = args.figure_dir or "results/figures"
 
     if not args.skip_download:
         commands.append(_python_command("scripts/download_external_datasets.py"))
@@ -30,12 +46,8 @@ def build_pipeline_commands(args):
             training_command.append("--quick")
         if args.resume:
             training_command.append("--resume")
-        if args.results:
-            training_command.extend(["--output", args.results])
+        training_command.extend(["--output", results_path])
         commands.append(training_command)
-
-    results_path = args.results or "results/tables/main_experiment_results.csv"
-    summary_path = args.summary or "results/tables/summary_results.csv"
 
     commands.extend(
         [
@@ -51,16 +63,20 @@ def build_pipeline_commands(args):
                 "--input",
                 results_path,
                 "--output-dir",
-                args.analysis_dir,
+                analysis_dir,
             ),
             _python_command(
                 "scripts/make_plots.py",
                 "--input",
                 results_path,
                 "--output-dir",
-                args.figure_dir,
+                figure_dir,
             ),
-            _python_command("scripts/make_metadata_tables.py"),
+            _python_command(
+                "scripts/make_metadata_tables.py",
+                "--config",
+                args.config,
+            ),
         ]
     )
 
@@ -113,7 +129,11 @@ def build_pipeline_commands(args):
                 args.diagnostic_table_dir,
                 "--figure-dir",
                 args.diagnostic_figure_dir,
-                *(["--save-models", "--model-output-dir", args.model_output_dir] if args.save_final_models else []),
+                *(
+                    ["--save-models", "--model-output-dir", args.model_output_dir]
+                    if args.save_final_models
+                    else []
+                ),
             )
         )
 
@@ -139,12 +159,12 @@ def parse_args():
     )
     parser.add_argument(
         "--analysis-dir",
-        default="results/tables/analysis",
+        default=None,
         help="Directory for analysis CSV files.",
     )
     parser.add_argument(
         "--figure-dir",
-        default="results/figures",
+        default=None,
         help="Directory for generated plots.",
     )
     parser.add_argument(

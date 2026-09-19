@@ -6,6 +6,13 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 
+SUPPORTED_MODEL_NAMES = (
+    "logistic_regression",
+    "random_forest",
+    "hist_gradient_boosting",
+)
+
+
 def get_baseline_models(random_state: int = 42):
     """Return the baseline classifiers used throughout the benchmark."""
 

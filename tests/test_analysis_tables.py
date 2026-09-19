@@ -1,6 +1,11 @@
+import numpy as np
 import pandas as pd
 
-from scripts.make_analysis_tables import make_all_analysis_tables
+from scripts.make_analysis_tables import (
+    _holm_adjust,
+    make_all_analysis_tables,
+    paired_cleaning_comparisons,
+)
 from scripts.run_full_pipeline import build_pipeline_commands, parse_args
 from scripts.validate_results import validate_results, validation_report
 from src.evaluation.experiment_runner import run_single_experiment
@@ -54,12 +59,44 @@ def test_make_all_analysis_tables_returns_expected_tables():
     assert set(tables) == {
         "condition_summary",
         "detector_ranking",
+        "detector_breakdown",
         "cleaning_gain_summary",
         "noise_impact_summary",
         "best_cleaning_by_setting",
+        "paired_cleaning_comparisons",
     }
     assert all(not table.empty for table in tables.values())
     assert set(tables["detector_ranking"]["detector"]) == {"combined", "confidence"}
+    assert set(tables["detector_ranking"]["detection_evaluations"]) == {1}
+
+
+def test_paired_comparisons_have_complete_pairing_and_valid_rates():
+    comparisons = paired_cleaning_comparisons(
+        _small_results(),
+        n_resamples=200,
+        random_state=7,
+    )
+
+    assert set(comparisons["scope"]) == {"all", "breast_cancer"}
+    assert set(comparisons["metric"]) == {"accuracy", "f1_macro", "auroc"}
+    assert set(comparisons["settings"]) == {1}
+    assert set(comparisons["seeds_per_setting_min"]) == {1}
+    assert set(comparisons["seeds_per_setting_max"]) == {1}
+    assert comparisons["wilcoxon_p"].between(0.0, 1.0).all()
+    assert comparisons["wilcoxon_p_holm"].between(0.0, 1.0).all()
+    assert np.allclose(
+        comparisons[["win_rate", "tie_rate", "loss_rate"]].sum(axis=1),
+        1.0,
+    )
+
+
+def test_holm_adjustment_is_monotonic_and_not_smaller_than_raw_p_values():
+    raw = np.array([0.01, 0.04, 0.03, 0.20])
+    adjusted = _holm_adjust(raw)
+
+    assert np.all(adjusted >= raw)
+    sorted_adjusted = adjusted[np.argsort(raw)]
+    assert np.all(np.diff(sorted_adjusted) >= 0.0)
 
 
 def test_run_full_pipeline_quick_mode_skips_full_validation(monkeypatch):
@@ -83,6 +120,30 @@ def test_run_full_pipeline_quick_mode_skips_full_validation(monkeypatch):
     assert any("--quick" in command for command in flattened)
     assert any("make_analysis_tables.py" in command for command in flattened)
     assert not any("validate_results.py" in command for command in flattened)
+
+
+def test_run_full_pipeline_quick_defaults_are_isolated(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["run_full_pipeline.py", "--quick"])
+    args = parse_args()
+    commands = build_pipeline_commands(args)
+    flattened = [" ".join(command) for command in commands]
+
+    assert any(
+        "--output results/tables/quick_pipeline_results.csv" in command
+        for command in flattened
+    )
+    assert any(
+        "--output results/tables/quick_pipeline_summary.csv" in command
+        for command in flattened
+    )
+    assert any(
+        "--output-dir results/tables/quick_pipeline_analysis" in command
+        for command in flattened
+    )
+    assert any(
+        "--output-dir results/figures/quick_pipeline" in command
+        for command in flattened
+    )
 
 
 def test_run_full_pipeline_can_include_model_artifacts(monkeypatch):

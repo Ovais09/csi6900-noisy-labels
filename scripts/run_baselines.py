@@ -17,7 +17,8 @@ from src.data.preprocessing import make_train_val_test_split
 from src.evaluation.metrics import classification_metrics
 from src.models.baselines import get_baseline_models
 from src.noise.inject_noise import inject_class_dependent_noise, inject_symmetric_noise
-from src.utils.io import load_yaml, save_dataframe
+from src.utils.config import load_experiment_config
+from src.utils.io import save_dataframe
 from src.utils.seeds import set_global_seed
 
 
@@ -49,9 +50,13 @@ def parse_args():
 
 def main():
     args = parse_args()
-    config = load_yaml(args.config)
+    config = load_experiment_config(args.config)
     if args.quick:
         config = _quick_config(config)
+
+    output_path = args.output
+    if args.quick and args.output == "results/tables/baseline_results.csv":
+        output_path = "results/tables/baseline_results_quick.csv"
 
     rows = []
     combinations = product(
@@ -109,7 +114,7 @@ def main():
                 }
             )
 
-    saved_path = save_dataframe(pd.DataFrame(rows), args.output)
+    saved_path = save_dataframe(pd.DataFrame(rows), output_path)
     print(f"Saved baseline results to {saved_path}")
 
 
