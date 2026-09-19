@@ -11,7 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.data.load_datasets import load_dataset
-from src.utils.config import load_experiment_config
+from src.utils.config import load_experiment_config, quick_experiment_config
 from src.utils.io import save_dataframe
 
 
@@ -108,23 +108,42 @@ def noise_table(noise_types, noise_rates):
     )
 
 
+def model_table(model_names):
+    """Return metadata only for models selected by the experiment config."""
+
+    selected = set(model_names)
+    return pd.DataFrame([row for row in MODEL_ROWS if row["model"] in selected])
+
+
+def detector_table(detector_names):
+    """Return metadata only for detectors selected by the experiment config."""
+
+    selected = set(detector_names)
+    return pd.DataFrame(
+        [row for row in DETECTOR_ROWS if row["detector"] in selected]
+    )
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/experiment_config.yaml")
     parser.add_argument("--output-dir", default="results/tables")
+    parser.add_argument("--quick", action="store_true")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     config = load_experiment_config(args.config)
+    if args.quick:
+        config = quick_experiment_config(config)
     output_dir = Path(args.output_dir)
 
     tables = {
         "dataset_overview.csv": dataset_table(config["datasets"]),
-        "model_overview.csv": pd.DataFrame(MODEL_ROWS),
+        "model_overview.csv": model_table(config["models"]),
         "noise_settings.csv": noise_table(config["noise_types"], config["noise_rates"]),
-        "detector_methods.csv": pd.DataFrame(DETECTOR_ROWS),
+        "detector_methods.csv": detector_table(config["detectors"]),
         "cleaning_conditions.csv": pd.DataFrame(CLEANING_ROWS),
     }
 

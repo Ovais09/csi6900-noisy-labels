@@ -75,12 +75,18 @@ def plot_metric(df, metric, dataset, noise_type, model, output_dir):
     print(f"Saved {path}")
 
 
-def plot_detection_f1(df, dataset, model, output_dir):
-    subset = df[
+def detection_plot_data(df, dataset, model):
+    """Return one detector observation per experiment, without cleaning duplicates."""
+
+    return df[
         (df["dataset"] == dataset)
         & (df["model"] == model)
-        & (df["condition"].isin(["remove_suspicious", "relabel_suspicious"]))
+        & (df["condition"] == "remove_suspicious")
     ]
+
+
+def plot_detection_f1(df, dataset, model, output_dir):
+    subset = detection_plot_data(df, dataset, model)
 
     if subset.empty:
         return

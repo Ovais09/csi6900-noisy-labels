@@ -9,7 +9,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils.config import load_experiment_config
+from src.utils.config import load_experiment_config, quick_experiment_config
+
+
+EXTERNAL_DATASETS = {"dry_bean"}
 
 
 def _python_command(*args):
@@ -20,6 +23,7 @@ def build_pipeline_commands(args):
     """Build ordered subprocess commands for the full project pipeline."""
 
     config = load_experiment_config(args.config)
+    matrix_config = quick_experiment_config(config) if args.quick else config
     commands = []
 
     if args.quick:
@@ -27,14 +31,27 @@ def build_pipeline_commands(args):
         summary_path = args.summary or "results/tables/quick_pipeline_summary.csv"
         analysis_dir = args.analysis_dir or "results/tables/quick_pipeline_analysis"
         figure_dir = args.figure_dir or "results/figures/quick_pipeline"
+        metadata_dir = args.metadata_dir or "results/tables/quick_pipeline_metadata"
     else:
         results_path = args.results or config["output"]["results_csv"]
         summary_path = args.summary or config["output"]["summary_csv"]
         analysis_dir = args.analysis_dir or "results/tables/analysis"
         figure_dir = args.figure_dir or "results/figures"
+        metadata_dir = args.metadata_dir or "results/tables"
 
-    if not args.skip_download:
-        commands.append(_python_command("scripts/download_external_datasets.py"))
+    external_datasets = [
+        dataset
+        for dataset in matrix_config["datasets"]
+        if dataset in EXTERNAL_DATASETS
+    ]
+    if not args.skip_download and external_datasets:
+        commands.append(
+            _python_command(
+                "scripts/download_external_datasets.py",
+                "--datasets",
+                *external_datasets,
+            )
+        )
 
     if not args.skip_training:
         training_command = _python_command(
@@ -76,6 +93,9 @@ def build_pipeline_commands(args):
                 "scripts/make_metadata_tables.py",
                 "--config",
                 args.config,
+                "--output-dir",
+                metadata_dir,
+                *(["--quick"] if args.quick else []),
             ),
         ]
     )
@@ -186,6 +206,11 @@ def parse_args():
         "--figure-dir",
         default=None,
         help="Directory for generated plots.",
+    )
+    parser.add_argument(
+        "--metadata-dir",
+        default=None,
+        help="Directory for generated experiment metadata tables.",
     )
     parser.add_argument(
         "--validation-report",

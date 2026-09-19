@@ -180,6 +180,12 @@ def best_cleaning_by_setting(df: pd.DataFrame) -> pd.DataFrame:
 
 def _bootstrap_mean_interval(values, rng, n_resamples: int = 5000):
     values = np.asarray(values, dtype=float)
+    if (
+        isinstance(n_resamples, bool)
+        or not isinstance(n_resamples, int)
+        or n_resamples < 1
+    ):
+        raise ValueError("n_resamples must be a positive integer")
     if len(values) == 0:
         return np.nan, np.nan
     samples = rng.choice(values, size=(n_resamples, len(values)), replace=True)
@@ -226,40 +232,44 @@ def paired_cleaning_comparisons(
         ]
 
         for metric in ("accuracy", "f1_macro", "auroc"):
-            baseline = (
-                noisy.groupby(SETTING_COLUMNS, dropna=False)
-                .agg(
-                    baseline_value=(metric, "mean"),
-                    baseline_seeds=("random_state", "nunique"),
-                )
-                .reset_index()
+            baseline_runs = noisy[BASE_COLUMNS + [metric]].rename(
+                columns={metric: "baseline_value"}
             )
             for (condition, detector), group in cleaned.groupby(
                 ["condition", "detector"], sort=True
             ):
-                cleaned_settings = (
-                    group.groupby(SETTING_COLUMNS, dropna=False)
+                cleaned_runs = group[BASE_COLUMNS + [metric]].rename(
+                    columns={metric: "cleaned_value"}
+                )
+                paired_runs = cleaned_runs.merge(
+                    baseline_runs,
+                    on=BASE_COLUMNS,
+                    how="outer",
+                    validate="one_to_one",
+                    indicator=True,
+                )
+                unmatched = paired_runs["_merge"] != "both"
+                if unmatched.any():
+                    raise ValueError(
+                        "Cleaning and baseline rows have different exact seed coverage."
+                    )
+                if paired_runs[["cleaned_value", "baseline_value"]].isna().any().any():
+                    raise ValueError("Paired classification metrics must not be missing.")
+
+                paired_runs["difference"] = (
+                    paired_runs["cleaned_value"] - paired_runs["baseline_value"]
+                )
+                paired = (
+                    paired_runs.groupby(SETTING_COLUMNS, dropna=False)
                     .agg(
-                        cleaned_value=(metric, "mean"),
-                        cleaned_seeds=("random_state", "nunique"),
+                        baseline_value=("baseline_value", "mean"),
+                        cleaned_value=("cleaned_value", "mean"),
+                        difference=("difference", "mean"),
+                        seeds=("random_state", "nunique"),
                     )
                     .reset_index()
                 )
-                paired = cleaned_settings.merge(
-                    baseline,
-                    on=SETTING_COLUMNS,
-                    how="inner",
-                    validate="one_to_one",
-                )
-                if not (
-                    paired["cleaned_seeds"] == paired["baseline_seeds"]
-                ).all():
-                    raise ValueError(
-                        "Cleaning and baseline rows have different seed coverage."
-                    )
-                differences = (
-                    paired["cleaned_value"] - paired["baseline_value"]
-                ).dropna().to_numpy()
+                differences = paired["difference"].to_numpy()
                 if len(differences) == 0:
                     continue
 
@@ -283,8 +293,8 @@ def paired_cleaning_comparisons(
                         "condition": condition,
                         "detector": detector,
                         "settings": len(differences),
-                        "seeds_per_setting_min": paired["baseline_seeds"].min(),
-                        "seeds_per_setting_max": paired["baseline_seeds"].max(),
+                        "seeds_per_setting_min": paired["seeds"].min(),
+                        "seeds_per_setting_max": paired["seeds"].max(),
                         "baseline_mean": paired["baseline_value"].mean(),
                         "cleaned_mean": paired["cleaned_value"].mean(),
                         "mean_gain": differences.mean(),

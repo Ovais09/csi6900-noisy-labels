@@ -1,11 +1,14 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from scripts.make_analysis_tables import (
     _holm_adjust,
     make_all_analysis_tables,
     paired_cleaning_comparisons,
 )
+from scripts.make_metadata_tables import detector_table, model_table
+from scripts.make_plots import detection_plot_data
 from scripts.run_full_pipeline import build_pipeline_commands, parse_args
 from scripts.validate_results import validate_results, validation_report
 from src.evaluation.experiment_runner import run_single_experiment
@@ -90,6 +93,23 @@ def test_paired_comparisons_have_complete_pairing_and_valid_rates():
     )
 
 
+def test_paired_comparisons_require_exact_seed_identity():
+    mismatched = _small_results()
+    row_index = mismatched.index[
+        mismatched["condition"].eq("remove_suspicious")
+        & mismatched["detector"].eq("confidence")
+    ][0]
+    mismatched.loc[row_index, "random_state"] = 999
+
+    with pytest.raises(ValueError, match="exact seed coverage"):
+        paired_cleaning_comparisons(mismatched, n_resamples=20)
+
+
+def test_paired_comparisons_reject_invalid_bootstrap_count():
+    with pytest.raises(ValueError, match="positive integer"):
+        paired_cleaning_comparisons(_small_results(), n_resamples=0)
+
+
 def test_holm_adjustment_is_monotonic_and_not_smaller_than_raw_p_values():
     raw = np.array([0.01, 0.04, 0.03, 0.20])
     adjusted = _holm_adjust(raw)
@@ -148,6 +168,33 @@ def test_run_full_pipeline_quick_defaults_are_isolated(monkeypatch):
         "make_run_manifest.py" in command and "--quick" in command
         for command in flattened
     )
+    assert any(
+        "make_metadata_tables.py" in command
+        and "--output-dir results/tables/quick_pipeline_metadata" in command
+        and "--quick" in command
+        for command in flattened
+    )
+    assert not any("download_external_datasets.py" in command for command in flattened)
+
+
+def test_detection_plot_data_counts_each_detector_once():
+    data = detection_plot_data(
+        _small_results(),
+        dataset="breast_cancer",
+        model="logistic_regression",
+    )
+
+    assert len(data) == 2
+    assert set(data["detector"]) == {"combined", "confidence"}
+    assert set(data["condition"]) == {"remove_suspicious"}
+
+
+def test_metadata_tables_follow_selected_config_methods():
+    models = model_table(["random_forest"])
+    detectors = detector_table(["confidence", "combined"])
+
+    assert list(models["model"]) == ["random_forest"]
+    assert set(detectors["detector"]) == {"confidence", "combined"}
 
 
 def test_run_full_pipeline_can_include_model_artifacts(monkeypatch):
