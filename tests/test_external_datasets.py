@@ -1,7 +1,6 @@
 from zipfile import ZipFile
 
 import pandas as pd
-
 import pytest
 
 from src.data.external_datasets import (
@@ -10,7 +9,6 @@ from src.data.external_datasets import (
     parse_dry_bean_arff,
     prepare_dry_bean_dataset,
 )
-
 
 TINY_DRY_BEAN_ARFF = """@RELATION DryBeanDataset
 

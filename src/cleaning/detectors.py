@@ -4,7 +4,6 @@ import numpy as np
 from sklearn.base import clone
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
-
 SUPPORTED_DETECTORS = ("combined", "confidence", "disagreement", "margin")
 
 

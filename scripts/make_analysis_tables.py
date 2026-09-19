@@ -14,7 +14,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.utils.io import save_dataframe
 
-
 BASE_COLUMNS = ["dataset", "noise_type", "noise_rate", "model", "random_state"]
 SETTING_COLUMNS = ["dataset", "noise_type", "noise_rate", "model"]
 

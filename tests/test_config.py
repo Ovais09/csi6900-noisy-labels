@@ -30,22 +30,37 @@ def test_repository_experiment_config_is_valid():
 
 
 @pytest.mark.parametrize(
-    ("key", "value", "message"),
+    ("key", "value", "error_type", "message"),
     [
-        ("datasets", ["unknown"], "unsupported"),
-        ("detectors", ["confidence", "confidence"], "duplicate"),
-        ("noise_rates", [1.0], r"\[0, 1\)"),
-        ("noise_rates", [float("nan")], r"\[0, 1\)"),
-        ("seeds", [True], "integers"),
-        ("seeds", [-1], r"2\*\*32"),
-        ("cv_folds", 1, "at least 2"),
+        ("datasets", ["unknown"], ValueError, "unsupported"),
+        ("detectors", ["confidence", "confidence"], ValueError, "duplicate"),
+        ("noise_rates", [1.0], ValueError, r"\[0, 1\)"),
+        ("noise_rates", [float("nan")], ValueError, r"\[0, 1\)"),
+        ("noise_rates", ["0.1"], TypeError, "numbers"),
+        ("seeds", [True], TypeError, "integers"),
+        ("seeds", [-1], ValueError, r"2\*\*32"),
+        ("cv_folds", 1, ValueError, "at least 2"),
     ],
 )
-def test_invalid_config_values_fail_early(key, value, message):
+def test_invalid_config_values_fail_early(key, value, error_type, message):
     config = deepcopy(_valid_config())
     config[key] = value
 
-    with pytest.raises(ValueError, match=message):
+    with pytest.raises(error_type, match=message):
+        validate_experiment_config(config)
+
+
+@pytest.mark.parametrize("config", [None, [], "config"])
+def test_config_must_be_a_mapping(config):
+    with pytest.raises(TypeError, match="mapping"):
+        validate_experiment_config(config)
+
+
+def test_config_output_must_be_a_mapping():
+    config = _valid_config()
+    config["output"] = "results.csv"
+
+    with pytest.raises(TypeError, match="output must be a mapping"):
         validate_experiment_config(config)
 
 

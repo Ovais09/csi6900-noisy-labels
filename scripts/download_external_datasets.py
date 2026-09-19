@@ -10,7 +10,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.data.external_datasets import prepare_dry_bean_dataset
 
-
 SUPPORTED_EXTERNAL_DATASETS = ("dry_bean",)
 
 

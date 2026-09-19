@@ -13,7 +13,6 @@ from sklearn.preprocessing import LabelEncoder
 from src.data.load_datasets import DatasetBundle
 from src.utils.io import save_dataframe_atomic
 
-
 DRY_BEAN_URL = (
     "https://archive.ics.uci.edu/ml/machine-learning-databases/"
     "00602/DryBeanDataset.zip"

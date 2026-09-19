@@ -11,7 +11,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.utils.config import load_experiment_config, quick_experiment_config
 
-
 EXTERNAL_DATASETS = {"dry_bean"}
 
 

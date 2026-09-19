@@ -10,7 +10,6 @@ from scripts.validate_results import validate_results, validation_report
 from src.evaluation.experiment_runner import run_single_experiment
 from src.evaluation.result_contract import combo_key, complete_combo_keys
 
-
 DETECTORS = ("combined", "confidence")
 
 

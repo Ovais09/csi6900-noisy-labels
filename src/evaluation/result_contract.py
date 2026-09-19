@@ -4,7 +4,6 @@ from collections.abc import Iterable
 
 import pandas as pd
 
-
 BASE_CONDITIONS = ("clean_upper_bound", "noisy_baseline")
 CLEANING_CONDITIONS = ("remove_suspicious", "relabel_suspicious")
 COMBO_COLUMNS = ("dataset", "noise_type", "noise_rate", "model", "random_state")

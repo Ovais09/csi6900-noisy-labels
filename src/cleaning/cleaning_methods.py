@@ -47,7 +47,7 @@ def select_top_k_suspicious(scores, fraction: float):
         raise ValueError("scores must be a one-dimensional array")
     if not np.isfinite(scores).all():
         raise ValueError("scores must contain only finite values")
-    k = int(round(fraction * len(scores)))
+    k = round(fraction * len(scores))
     suspicious_mask = np.zeros(len(scores), dtype=bool)
 
     if k <= 0:

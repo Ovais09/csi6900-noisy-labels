@@ -36,6 +36,12 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+For development and code-quality checks, install the pinned audit tools too:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
 ## Docker
 
 Start Docker Desktop first if you are on macOS.
@@ -146,6 +152,15 @@ Run tests:
 
 ```bash
 pytest -q
+```
+
+Run static analysis and branch coverage:
+
+```bash
+ruff check src scripts tests main.py
+coverage erase
+coverage run --branch --source=src,scripts -m pytest -q
+coverage report -m
 ```
 
 ## Notebook Workflow

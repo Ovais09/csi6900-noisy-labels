@@ -13,8 +13,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils.config import load_experiment_config
-from src.utils.io import save_dataframe
 from src.evaluation.result_contract import (
     BASE_CONDITIONS,
     CLEANING_CONDITIONS,
@@ -23,7 +21,8 @@ from src.evaluation.result_contract import (
     combo_key,
     expected_row_signatures,
 )
-
+from src.utils.config import load_experiment_config
+from src.utils.io import save_dataframe
 
 REQUIRED_COLUMNS = {
     "dataset",

@@ -11,7 +11,6 @@ from src.models.baselines import SUPPORTED_MODEL_NAMES
 from src.noise.inject_noise import SUPPORTED_NOISE_TYPES
 from src.utils.io import load_yaml
 
-
 MATRIX_KEYS = (
     "datasets",
     "noise_types",
@@ -44,7 +43,7 @@ def validate_experiment_config(config):
     """Validate and return an experiment configuration mapping."""
 
     if not isinstance(config, Mapping):
-        raise ValueError("Experiment config must be a mapping")
+        raise TypeError("Experiment config must be a mapping")
 
     _validate_unique_sequence(config, "datasets", SUPPORTED_DATASETS)
     _validate_unique_sequence(config, "noise_types", SUPPORTED_NOISE_TYPES)
@@ -55,13 +54,13 @@ def validate_experiment_config(config):
 
     for rate in noise_rates:
         if isinstance(rate, bool) or not isinstance(rate, Real):
-            raise ValueError("config.noise_rates must contain only numbers")
+            raise TypeError("config.noise_rates must contain only numbers")
         if not math.isfinite(float(rate)) or not 0.0 <= float(rate) < 1.0:
             raise ValueError("config.noise_rates values must be in [0, 1)")
 
     for seed in seeds:
         if isinstance(seed, bool) or not isinstance(seed, int):
-            raise ValueError("config.seeds must contain only integers")
+            raise TypeError("config.seeds must contain only integers")
         if not 0 <= seed <= 2**32 - 1:
             raise ValueError("config.seeds values must be in [0, 2**32 - 1]")
 
@@ -71,7 +70,7 @@ def validate_experiment_config(config):
 
     output = config.get("output")
     if not isinstance(output, Mapping):
-        raise ValueError("config.output must be a mapping")
+        raise TypeError("config.output must be a mapping")
     for key in ("results_csv", "summary_csv"):
         value = output.get(key)
         if not isinstance(value, str) or not value.strip():

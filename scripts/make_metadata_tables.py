@@ -14,7 +14,6 @@ from src.data.load_datasets import load_dataset
 from src.utils.config import load_experiment_config, quick_experiment_config
 from src.utils.io import save_dataframe
 
-
 MODEL_ROWS = [
     {
         "model": "logistic_regression",

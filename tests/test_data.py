@@ -1,6 +1,7 @@
+import pytest
+
 from src.data.load_datasets import load_dataset
 from src.data.preprocessing import make_train_val_test_split
-import pytest
 
 
 def test_load_supported_datasets():

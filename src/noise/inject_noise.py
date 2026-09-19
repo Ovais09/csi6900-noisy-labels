@@ -6,7 +6,6 @@ from numbers import Real
 import numpy as np
 import pandas as pd
 
-
 SUPPORTED_NOISE_TYPES = ("symmetric", "class_dependent")
 
 
@@ -54,7 +53,7 @@ def inject_symmetric_noise(y, noise_rate: float, random_state: int = 42):
         raise ValueError("At least two classes are required to inject label noise.")
 
     n_samples = len(y_array)
-    n_corrupt = int(round(noise_rate * n_samples))
+    n_corrupt = round(noise_rate * n_samples)
     corrupted_mask = np.zeros(n_samples, dtype=bool)
 
     if n_corrupt == 0:
@@ -99,7 +98,7 @@ def inject_class_dependent_noise(y, noise_rate: float, random_state: int = 42):
 
     for cls in classes:
         cls_indices = np.where(clean_labels == cls)[0]
-        n_corrupt_cls = int(round(noise_rate * len(cls_indices)))
+        n_corrupt_cls = round(noise_rate * len(cls_indices))
 
         if n_corrupt_cls == 0:
             continue

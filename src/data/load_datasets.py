@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import pandas as pd
 from sklearn.datasets import load_breast_cancer, load_digits, load_wine
 
-
 SUPPORTED_DATASETS = ("breast_cancer", "wine", "digits", "dry_bean")
 
 

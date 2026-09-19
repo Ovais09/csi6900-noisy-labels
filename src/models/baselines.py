@@ -5,7 +5,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-
 SUPPORTED_MODEL_NAMES = (
     "logistic_regression",
     "random_forest",

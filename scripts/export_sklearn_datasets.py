@@ -14,7 +14,6 @@ from src.data.load_datasets import load_dataset
 from src.utils.io import save_dataframe
 from src.utils.provenance import sha256_file
 
-
 DEFAULT_DATASETS = ("breast_cancer", "wine", "digits")
 EXTERNAL_DATASETS = ("dry_bean",)
 
