@@ -17,7 +17,7 @@ from src.data.preprocessing import make_train_val_test_split
 from src.evaluation.metrics import classification_metrics
 from src.models.baselines import get_baseline_models
 from src.noise.inject_noise import inject_class_dependent_noise, inject_symmetric_noise
-from src.utils.config import load_experiment_config
+from src.utils.config import load_experiment_config, quick_experiment_config
 from src.utils.io import save_dataframe
 from src.utils.seeds import set_global_seed
 
@@ -31,13 +31,7 @@ def _inject_noise(y_train, noise_type, noise_rate, random_state):
 
 
 def _quick_config(config):
-    quick = dict(config)
-    quick["datasets"] = config["datasets"][:1]
-    quick["noise_types"] = config["noise_types"][:1]
-    quick["noise_rates"] = config["noise_rates"][:1]
-    quick["models"] = config["models"][:1]
-    quick["seeds"] = config["seeds"][:1]
-    return quick
+    return quick_experiment_config(config)
 
 
 def parse_args():

@@ -13,6 +13,9 @@ def build_numeric_preprocessor():
 def make_train_val_test_split(X, y, random_state: int = 42):
     """Create stratified 60/20/20 train, validation, and test splits."""
 
+    if len(X) != len(y):
+        raise ValueError("X and y must contain the same number of rows")
+
     X_train, X_temp, y_train, y_temp = train_test_split(
         X,
         y,

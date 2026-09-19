@@ -30,7 +30,11 @@ def select_top_k_suspicious(scores, fraction: float):
     """Select the top fraction of suspiciousness scores."""
 
     _validate_fraction(fraction)
-    scores = np.asarray(scores)
+    scores = np.asarray(scores, dtype=float)
+    if scores.ndim != 1:
+        raise ValueError("scores must be a one-dimensional array")
+    if not np.isfinite(scores).all():
+        raise ValueError("scores must contain only finite values")
     k = int(round(fraction * len(scores)))
     suspicious_mask = np.zeros(len(scores), dtype=bool)
 
@@ -47,6 +51,10 @@ def remove_suspicious_samples(X_train, y_train, suspicious_mask):
     """Drop rows flagged as suspicious from the training set."""
 
     keep_mask = ~np.asarray(suspicious_mask, dtype=bool)
+    if keep_mask.ndim != 1 or len(keep_mask) != len(y_train):
+        raise ValueError("suspicious_mask must match the number of training rows")
+    if len(X_train) != len(y_train):
+        raise ValueError("X_train and y_train must contain the same number of rows")
     return X_train.iloc[keep_mask], y_train.iloc[keep_mask]
 
 
@@ -61,6 +69,10 @@ def relabel_suspicious_samples(
     """Replace suspicious labels with cross-validated model predictions."""
 
     suspicious_mask = np.asarray(suspicious_mask, dtype=bool)
+    if suspicious_mask.ndim != 1 or len(suspicious_mask) != len(y_train):
+        raise ValueError("suspicious_mask must match the number of training rows")
+    if len(X_train) != len(y_train):
+        raise ValueError("X_train and y_train must contain the same number of rows")
     y_pred = cross_val_predict(
         clone(model),
         X_train,

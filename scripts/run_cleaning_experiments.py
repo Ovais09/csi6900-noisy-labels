@@ -13,19 +13,13 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.evaluation.experiment_runner import run_single_experiment
 from src.evaluation.result_contract import COMBO_COLUMNS, combo_key, complete_combo_keys
-from src.utils.config import load_experiment_config
+from src.utils.config import load_experiment_config, quick_experiment_config
 from src.utils.io import save_dataframe, save_dataframe_atomic
 from src.utils.seeds import set_global_seed
 
 
 def _quick_config(config):
-    quick = dict(config)
-    quick["datasets"] = config["datasets"][:1]
-    quick["noise_types"] = config["noise_types"][:1]
-    quick["noise_rates"] = config["noise_rates"][:1]
-    quick["models"] = config["models"][:1]
-    quick["seeds"] = config["seeds"][:1]
-    return quick
+    return quick_experiment_config(config)
 
 
 def _result_output_path(config, requested_path=None, quick: bool = False):

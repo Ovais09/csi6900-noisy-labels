@@ -93,6 +93,26 @@ def build_pipeline_commands(args):
             )
         )
 
+    manifest_path = args.run_manifest
+    if manifest_path is None:
+        manifest_path = (
+            "results/logs/quick_pipeline_manifest.json"
+            if args.quick
+            else "results/logs/run_manifest.json"
+        )
+    manifest_command = _python_command(
+        "scripts/make_run_manifest.py",
+        "--config",
+        args.config,
+        "--results",
+        results_path,
+        "--output",
+        manifest_path,
+    )
+    if args.quick:
+        manifest_command.append("--quick")
+    commands.append(manifest_command)
+
     artifact_args = [
         "--dataset",
         args.artifact_dataset,
@@ -171,6 +191,11 @@ def parse_args():
         "--validation-report",
         default="results/tables/validation_report.csv",
         help="Output CSV for validation report.",
+    )
+    parser.add_argument(
+        "--run-manifest",
+        default=None,
+        help="Output JSON path for config, data, result, Git, and environment hashes.",
     )
     parser.add_argument(
         "--quick",

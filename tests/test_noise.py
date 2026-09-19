@@ -46,3 +46,20 @@ def test_noise_rate_validation():
 
     with pytest.raises(ValueError):
         inject_class_dependent_noise(y, 1.1)
+
+
+def test_noise_injection_accepts_array_labels_with_range_index():
+    y = np.array([0, 1] * 10)
+
+    y_noisy, mask = inject_symmetric_noise(y, 0.25, random_state=7)
+
+    assert isinstance(y_noisy, pd.Series)
+    assert y_noisy.index.equals(pd.RangeIndex(len(y)))
+    assert mask.sum() == 5
+
+
+def test_noise_injection_rejects_non_vector_labels():
+    y = np.array([[0, 1], [1, 0]])
+
+    with pytest.raises(ValueError, match="one-dimensional"):
+        inject_symmetric_noise(y, 0.2)

@@ -19,3 +19,4 @@ def test_export_datasets_writes_csv_and_manifest(tmp_path):
     assert manifest.loc[0, "dataset"] == "wine"
     assert saved_manifest.loc[0, "dataset"] == "wine"
     assert saved_manifest.loc[0, "samples"] == 178
+    assert len(saved_manifest.loc[0, "sha256"]) == 64

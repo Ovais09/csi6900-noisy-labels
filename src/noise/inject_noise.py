@@ -16,6 +16,13 @@ def _as_series(y_array, index, name=None) -> pd.Series:
     return pd.Series(y_array, index=index, name=name)
 
 
+def _label_metadata(y):
+    return (
+        getattr(y, "index", pd.RangeIndex(len(y))),
+        getattr(y, "name", None),
+    )
+
+
 def inject_symmetric_noise(y, noise_rate: float, random_state: int = 42):
     """Randomly flip a fraction of labels to any incorrect class.
 
@@ -31,6 +38,9 @@ def inject_symmetric_noise(y, noise_rate: float, random_state: int = 42):
     rng = np.random.default_rng(random_state)
 
     y_array = np.asarray(y).copy()
+    if y_array.ndim != 1:
+        raise ValueError("y must be one-dimensional")
+    index, name = _label_metadata(y)
     classes = np.unique(y_array)
     if len(classes) < 2:
         raise ValueError("At least two classes are required to inject label noise.")
@@ -40,7 +50,7 @@ def inject_symmetric_noise(y, noise_rate: float, random_state: int = 42):
     corrupted_mask = np.zeros(n_samples, dtype=bool)
 
     if n_corrupt == 0:
-        return _as_series(y_array, y.index, getattr(y, "name", None)), corrupted_mask
+        return _as_series(y_array, index, name), corrupted_mask
 
     corrupt_indices = rng.choice(n_samples, size=n_corrupt, replace=False)
     corrupted_mask[corrupt_indices] = True
@@ -50,7 +60,7 @@ def inject_symmetric_noise(y, noise_rate: float, random_state: int = 42):
         possible_labels = classes[classes != current_label]
         y_array[idx] = rng.choice(possible_labels)
 
-    return _as_series(y_array, y.index, getattr(y, "name", None)), corrupted_mask
+    return _as_series(y_array, index, name), corrupted_mask
 
 
 def inject_class_dependent_noise(y, noise_rate: float, random_state: int = 42):
@@ -65,6 +75,9 @@ def inject_class_dependent_noise(y, noise_rate: float, random_state: int = 42):
     rng = np.random.default_rng(random_state)
 
     clean_labels = np.asarray(y).copy()
+    if clean_labels.ndim != 1:
+        raise ValueError("y must be one-dimensional")
+    index, name = _label_metadata(y)
     y_noisy = clean_labels.copy()
     classes = np.unique(clean_labels)
     if len(classes) < 2:
@@ -87,4 +100,4 @@ def inject_class_dependent_noise(y, noise_rate: float, random_state: int = 42):
         y_noisy[corrupt_indices] = class_to_next[cls]
         corrupted_mask[corrupt_indices] = True
 
-    return _as_series(y_noisy, y.index, getattr(y, "name", None)), corrupted_mask
+    return _as_series(y_noisy, index, name), corrupted_mask

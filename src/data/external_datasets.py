@@ -1,6 +1,7 @@
 """External public tabular datasets used beyond the sklearn smoke datasets."""
 
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from urllib.request import urlretrieve
 from zipfile import ZipFile
 
@@ -30,7 +31,24 @@ def download_dry_bean(zip_path=DRY_BEAN_ZIP_PATH, url: str = DRY_BEAN_URL) -> Pa
     zip_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not zip_path.exists():
-        urlretrieve(url, zip_path)
+        temporary_path = None
+        try:
+            with NamedTemporaryFile(
+                prefix=f".{zip_path.name}.",
+                suffix=".tmp",
+                dir=zip_path.parent,
+                delete=False,
+            ) as handle:
+                temporary_path = Path(handle.name)
+            urlretrieve(url, temporary_path)
+            with ZipFile(temporary_path) as archive:
+                bad_member = archive.testzip()
+                if bad_member is not None:
+                    raise ValueError(f"Downloaded archive has a corrupt member: {bad_member}")
+            temporary_path.replace(zip_path)
+        finally:
+            if temporary_path is not None and temporary_path.exists():
+                temporary_path.unlink()
 
     return zip_path
 
@@ -59,9 +77,16 @@ def parse_dry_bean_arff(arff_path) -> tuple[pd.DataFrame, pd.DataFrame]:
     data, _ = arff.loadarff(arff_path)
     df = pd.DataFrame(data)
 
+    if "Class" not in df.columns:
+        raise ValueError("Dry Bean ARFF is missing the Class attribute")
+
     class_labels = df["Class"].str.decode("utf-8")
     label_encoder = LabelEncoder()
     df = df.drop(columns=["Class"])
+    if df.empty or df.isna().any().any():
+        raise ValueError("Dry Bean ARFF must contain non-empty, complete feature rows")
+    if not all(pd.api.types.is_numeric_dtype(dtype) for dtype in df.dtypes):
+        raise ValueError("Dry Bean features must all be numeric")
     df["target"] = label_encoder.fit_transform(class_labels)
 
     mapping = pd.DataFrame(

@@ -8,6 +8,7 @@ from src.cleaning.cleaning_methods import (
     select_top_k_suspicious,
 )
 from src.cleaning.detectors import (
+    SUPPORTED_DETECTORS,
     cross_validated_probabilities,
     predicted_labels_from_probabilities,
     scores_from_probabilities,
@@ -68,7 +69,25 @@ def _base_row(
     }
 
 
-def run_single_experiment(
+def _normalize_detector_methods(detector_methods):
+    if detector_methods is None:
+        normalized = ("combined",)
+    elif isinstance(detector_methods, str):
+        normalized = (detector_methods,)
+    else:
+        normalized = tuple(detector_methods)
+
+    if not normalized:
+        raise ValueError("At least one detector method is required.")
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("Detector methods must be unique.")
+    unknown = sorted(set(normalized).difference(SUPPORTED_DETECTORS))
+    if unknown:
+        raise ValueError(f"Unknown detector methods: {unknown}")
+    return normalized
+
+
+def run_single_experiment_details(
     dataset_name,
     noise_type,
     noise_rate,
@@ -77,17 +96,12 @@ def run_single_experiment(
     cv_folds: int = 5,
     detector_methods=None,
 ):
-    """Run clean, noisy, remove-cleaned, and relabeled conditions."""
+    """Fit one experiment and retain models and intermediate artifacts."""
 
-    if detector_methods is None:
-        detector_methods = ("combined",)
-    elif isinstance(detector_methods, str):
-        detector_methods = (detector_methods,)
-    else:
-        detector_methods = tuple(detector_methods)
+    detector_methods = _normalize_detector_methods(detector_methods)
 
     dataset = load_dataset(dataset_name)
-    X_train, _, X_test, y_train, _, y_test = make_train_val_test_split(
+    X_train, X_val, X_test, y_train, y_val, y_test = make_train_val_test_split(
         dataset.X,
         dataset.y,
         random_state=random_state,
@@ -105,6 +119,8 @@ def run_single_experiment(
 
     base_model = models[model_name]
     rows = []
+    fitted_models = {}
+    detector_artifacts = {}
     common_counts = {
         "n_train": len(X_train),
         "n_test": len(X_test),
@@ -113,6 +129,7 @@ def run_single_experiment(
 
     clean_model = clone(base_model)
     clean_model.fit(X_train, y_train)
+    fitted_models[("clean_upper_bound", "none")] = clean_model
     clean_metrics = classification_metrics(clean_model, X_test, y_test)
     rows.append(
         {
@@ -136,6 +153,7 @@ def run_single_experiment(
 
     noisy_model = clone(base_model)
     noisy_model.fit(X_train, y_train_noisy)
+    fitted_models[("noisy_baseline", "none")] = noisy_model
     noisy_metrics = classification_metrics(noisy_model, X_test, y_test)
     rows.append(
         {
@@ -183,6 +201,7 @@ def run_single_experiment(
         )
         removed_model = clone(base_model)
         removed_model.fit(X_train_removed, y_train_removed)
+        fitted_models[("remove_suspicious", detector)] = removed_model
         removed_metrics = classification_metrics(removed_model, X_test, y_test)
         rows.append(
             {
@@ -206,6 +225,7 @@ def run_single_experiment(
         y_train_relabel.iloc[suspicious_mask] = cv_pred_labels[suspicious_mask]
         relabel_model = clone(base_model)
         relabel_model.fit(X_train, y_train_relabel)
+        fitted_models[("relabel_suspicious", detector)] = relabel_model
         relabel_metrics = classification_metrics(relabel_model, X_test, y_test)
         rows.append(
             {
@@ -225,4 +245,50 @@ def run_single_experiment(
             }
         )
 
-    return pd.DataFrame(rows)
+        detector_artifacts[detector] = {
+            "scores": scores,
+            "suspicious_mask": suspicious_mask,
+            "detection_metrics": det_metrics,
+            "y_train_relabel": y_train_relabel,
+            "removed_train_indices": X_train_removed.index,
+        }
+
+    return {
+        "results": pd.DataFrame(rows),
+        "dataset": dataset,
+        "models": fitted_models,
+        "X_train": X_train,
+        "X_validation": X_val,
+        "X_test": X_test,
+        "y_train": y_train,
+        "y_train_noisy": y_train_noisy,
+        "y_validation": y_val,
+        "y_test": y_test,
+        "corrupted_mask": corrupted_mask,
+        "cv_probabilities": cv_proba,
+        "cv_predicted_labels": cv_pred_labels,
+        "detectors": detector_artifacts,
+    }
+
+
+def run_single_experiment(
+    dataset_name,
+    noise_type,
+    noise_rate,
+    model_name,
+    random_state: int = 42,
+    cv_folds: int = 5,
+    detector_methods=None,
+):
+    """Run clean, noisy, remove-cleaned, and relabeled conditions."""
+
+    details = run_single_experiment_details(
+        dataset_name=dataset_name,
+        noise_type=noise_type,
+        noise_rate=noise_rate,
+        model_name=model_name,
+        random_state=random_state,
+        cv_folds=cv_folds,
+        detector_methods=detector_methods,
+    )
+    return details["results"]

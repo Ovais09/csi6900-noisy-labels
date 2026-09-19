@@ -44,6 +44,8 @@ def test_save_final_model_set_writes_reloadable_joblib_models(tmp_path):
         path = Path(model_path)
         assert path.exists()
         assert hasattr(joblib.load(path), "predict")
+    assert metadata["model_sha256"].str.len().eq(64).all()
+    assert metadata["model_bytes"].gt(0).all()
 
 
 def test_create_model_diagnostics_writes_tables_and_figures(tmp_path):

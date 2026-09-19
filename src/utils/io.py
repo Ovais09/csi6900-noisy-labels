@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -49,6 +50,36 @@ def save_dataframe_atomic(df: pd.DataFrame, path) -> Path:
         ) as handle:
             temporary_path = Path(handle.name)
             df.to_csv(handle, index=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        temporary_path.replace(path)
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
+
+    return path
+
+
+def save_json_atomic(data, path) -> Path:
+    """Atomically save JSON-serializable provenance or configuration data."""
+
+    path = ensure_parent_dir(path)
+    temporary_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="",
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            dir=path.parent,
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            json.dump(data, handle, indent=2, sort_keys=True)
+            handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
 

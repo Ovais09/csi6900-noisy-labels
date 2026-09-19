@@ -108,6 +108,12 @@ def test_select_top_k_suspicious_validates_fraction():
     with pytest.raises(ValueError):
         select_top_k_suspicious([0.1, 0.2], fraction=1.5)
 
+    with pytest.raises(ValueError, match="finite"):
+        select_top_k_suspicious([0.1, np.nan], fraction=0.5)
+
+    with pytest.raises(ValueError, match="one-dimensional"):
+        select_top_k_suspicious([[0.1, 0.2]], fraction=0.5)
+
 
 def test_remove_suspicious_samples_keeps_unflagged_rows():
     dataset = load_dataset("wine")
@@ -120,6 +126,24 @@ def test_remove_suspicious_samples_keeps_unflagged_rows():
     assert len(y_clean) == len(dataset.y) - 10
     assert X_clean.index.equals(dataset.X.index[10:])
     assert y_clean.index.equals(dataset.y.index[10:])
+
+
+def test_cleaning_methods_reject_wrong_mask_lengths():
+    dataset = load_dataset("wine")
+    model = get_baseline_models(random_state=42)["logistic_regression"]
+    wrong_mask = np.zeros(len(dataset.y) - 1, dtype=bool)
+
+    with pytest.raises(ValueError, match="must match"):
+        remove_suspicious_samples(dataset.X, dataset.y, wrong_mask)
+
+    with pytest.raises(ValueError, match="must match"):
+        relabel_suspicious_samples(
+            model,
+            dataset.X,
+            dataset.y,
+            wrong_mask,
+            cv=3,
+        )
 
 
 def test_relabel_suspicious_samples_preserves_unflagged_labels():
@@ -147,3 +171,17 @@ def test_relabel_suspicious_samples_preserves_unflagged_labels():
         y_relabel.iloc[~suspicious_mask].to_numpy()
         == y_train.iloc[~suspicious_mask].to_numpy()
     )
+
+
+@pytest.mark.parametrize(
+    "proba",
+    [
+        np.array([0.5, 0.5]),
+        np.array([[0.5, 0.5]]),
+        np.array([[0.5, 0.6], [0.5, 0.5]]),
+        np.array([[np.nan, 0.5], [0.5, 0.5]]),
+    ],
+)
+def test_probability_scoring_rejects_invalid_arrays(proba):
+    with pytest.raises(ValueError):
+        scores_from_probabilities(proba, np.array([0, 1]), detector="confidence")

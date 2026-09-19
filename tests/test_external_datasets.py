@@ -2,7 +2,13 @@ from zipfile import ZipFile
 
 import pandas as pd
 
-from src.data.external_datasets import parse_dry_bean_arff, prepare_dry_bean_dataset
+import pytest
+
+from src.data.external_datasets import (
+    download_dry_bean,
+    parse_dry_bean_arff,
+    prepare_dry_bean_dataset,
+)
 
 
 TINY_DRY_BEAN_ARFF = """@RELATION DryBeanDataset
@@ -56,3 +62,34 @@ def test_prepare_dry_bean_dataset_from_local_zip(tmp_path):
     assert df.shape == (3, 3)
     assert set(df["target"]) == {0, 1}
     assert set(mapping["class_label"]) == {"BARBUNYA", "SEKER"}
+
+
+def test_parse_dry_bean_rejects_missing_class_attribute(tmp_path):
+    arff_path = tmp_path / "invalid.arff"
+    arff_path.write_text(
+        """@RELATION invalid
+@ATTRIBUTE Area NUMERIC
+@DATA
+100
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Class"):
+        parse_dry_bean_arff(arff_path)
+
+
+def test_download_dry_bean_publishes_only_valid_zip(tmp_path, monkeypatch):
+    destination = tmp_path / "DryBeanDataset.zip"
+
+    def fake_download(_url, temporary_path):
+        with ZipFile(temporary_path, "w") as archive:
+            archive.writestr("payload.txt", "valid")
+
+    monkeypatch.setattr("src.data.external_datasets.urlretrieve", fake_download)
+
+    result = download_dry_bean(destination, url="https://example.invalid/data.zip")
+
+    assert result == destination
+    assert destination.exists()
+    assert not list(tmp_path.glob("*.tmp"))

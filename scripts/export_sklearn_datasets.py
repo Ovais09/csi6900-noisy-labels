@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.data.load_datasets import load_dataset
 from src.utils.io import save_dataframe
+from src.utils.provenance import sha256_file
 
 
 DEFAULT_DATASETS = ("breast_cancer", "wine", "digits")
@@ -34,6 +35,7 @@ def export_dataset(dataset_name: str, output_dir) -> dict:
         "features": dataset.X.shape[1],
         "classes": dataset.n_classes,
         "task_type": dataset.task_type,
+        "sha256": sha256_file(saved_path),
     }
 
 

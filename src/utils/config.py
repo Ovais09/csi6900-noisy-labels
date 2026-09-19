@@ -17,6 +17,7 @@ MATRIX_KEYS = (
     "detectors",
     "seeds",
 )
+QUICK_MATRIX_KEYS = ("datasets", "noise_types", "noise_rates", "models", "seeds")
 
 
 def _validate_unique_sequence(config, key, allowed=None):
@@ -74,3 +75,14 @@ def load_experiment_config(path):
     """Load a YAML experiment config and validate its complete schema."""
 
     return validate_experiment_config(load_yaml(path))
+
+
+def quick_experiment_config(config):
+    """Return the one-combination smoke-test subset of a valid config."""
+
+    quick = dict(config)
+    for key in QUICK_MATRIX_KEYS:
+        quick[key] = list(config[key][:1])
+    quick["detectors"] = list(config["detectors"])
+    quick["output"] = dict(config["output"])
+    return quick

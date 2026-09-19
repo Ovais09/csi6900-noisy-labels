@@ -55,8 +55,19 @@ def scores_from_probabilities(
     """Compute a detector score from already-computed CV probabilities."""
 
     normalized_detector = detector.lower()
+    proba = np.asarray(proba, dtype=float)
     y_array = np.asarray(y_train)
     classes = np.unique(y_array)
+    if proba.ndim != 2:
+        raise ValueError("proba must be a two-dimensional array")
+    if proba.shape != (len(y_array), len(classes)):
+        raise ValueError(
+            "proba shape must equal (number of labels, number of classes)"
+        )
+    if not np.isfinite(proba).all() or np.any(proba < 0.0) or np.any(proba > 1.0):
+        raise ValueError("proba must contain finite probabilities in [0, 1]")
+    if not np.allclose(proba.sum(axis=1), 1.0, atol=1e-7):
+        raise ValueError("each probability row must sum to 1")
     class_to_col = {cls: i for i, cls in enumerate(classes)}
 
     assigned_label_probs = np.array(

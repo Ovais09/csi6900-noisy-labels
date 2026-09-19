@@ -6,30 +6,14 @@ from pathlib import Path
 
 import joblib
 import pandas as pd
-from sklearn.base import clone
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.cleaning.cleaning_methods import (
-    remove_suspicious_samples,
-    select_top_k_suspicious,
-)
-from src.cleaning.detectors import (
-    cross_validated_probabilities,
-    predicted_labels_from_probabilities,
-    scores_from_probabilities,
-)
-from src.data.load_datasets import load_dataset
-from src.data.preprocessing import make_train_val_test_split
-from src.evaluation.metrics import classification_metrics, detection_metrics
-from src.models.baselines import get_baseline_models
-from src.noise.inject_noise import (
-    inject_class_dependent_noise,
-    inject_symmetric_noise,
-)
+from src.evaluation.experiment_runner import run_single_experiment_details
 from src.utils.io import save_dataframe
+from src.utils.provenance import sha256_file
 
 
 MODEL_CONDITIONS = (
@@ -38,24 +22,6 @@ MODEL_CONDITIONS = (
     "remove_suspicious",
     "relabel_suspicious",
 )
-
-
-def _inject_noise(y_train, noise_type: str, noise_rate: float, random_state: int):
-    if noise_type == "symmetric":
-        return inject_symmetric_noise(
-            y_train,
-            noise_rate=noise_rate,
-            random_state=random_state,
-        )
-
-    if noise_type == "class_dependent":
-        return inject_class_dependent_noise(
-            y_train,
-            noise_rate=noise_rate,
-            random_state=random_state,
-        )
-
-    raise ValueError(f"Unknown noise type: {noise_type}")
 
 
 def train_final_model_set(
@@ -75,102 +41,45 @@ def train_final_model_set(
     function keeps fitted estimators for diagnostics and reproducibility checks.
     """
 
-    dataset = load_dataset(dataset_name)
-    X_train, X_val, X_test, y_train, y_val, y_test = make_train_val_test_split(
-        dataset.X,
-        dataset.y,
-        random_state=random_state,
-    )
-    y_train_noisy, corrupted_mask = _inject_noise(
-        y_train,
+    details = run_single_experiment_details(
+        dataset_name=dataset_name,
         noise_type=noise_type,
         noise_rate=noise_rate,
+        model_name=model_name,
         random_state=random_state,
+        cv_folds=cv_folds,
+        detector_methods=(detector,),
     )
-
-    models = get_baseline_models(random_state=random_state)
-    if model_name not in models:
-        raise ValueError(f"Unknown model: {model_name}")
-
-    base_model = models[model_name]
-    fitted_models = {}
-    rows = []
-
-    clean_model = clone(base_model)
-    clean_model.fit(X_train, y_train)
-    fitted_models["clean_upper_bound"] = clean_model
-
-    noisy_model = clone(base_model)
-    noisy_model.fit(X_train, y_train_noisy)
-    fitted_models["noisy_baseline"] = noisy_model
-
-    cv_proba = cross_validated_probabilities(
-        base_model,
-        X_train,
-        y_train_noisy,
-        cv=cv_folds,
-        random_state=random_state,
-    )
-    cv_pred_labels = predicted_labels_from_probabilities(cv_proba, y_train_noisy)
-    scores = scores_from_probabilities(cv_proba, y_train_noisy, detector=detector)
-    suspicious_mask = select_top_k_suspicious(scores, fraction=noise_rate)
-    det_metrics = detection_metrics(corrupted_mask, suspicious_mask)
-
-    X_train_removed, y_train_removed = remove_suspicious_samples(
-        X_train,
-        y_train_noisy,
-        suspicious_mask,
-    )
-    removed_model = clone(base_model)
-    removed_model.fit(X_train_removed, y_train_removed)
-    fitted_models["remove_suspicious"] = removed_model
-
-    y_train_relabel = y_train_noisy.copy()
-    y_train_relabel.iloc[suspicious_mask] = cv_pred_labels[suspicious_mask]
-    relabel_model = clone(base_model)
-    relabel_model.fit(X_train, y_train_relabel)
-    fitted_models["relabel_suspicious"] = relabel_model
-
-    for condition, model in fitted_models.items():
-        metrics = classification_metrics(model, X_test, y_test)
-        row = {
-            "dataset": dataset_name,
-            "noise_type": noise_type,
-            "noise_rate": noise_rate,
-            "model": model_name,
-            "condition": condition,
-            "detector": "none" if condition in {"clean_upper_bound", "noisy_baseline"} else detector,
-            "random_state": random_state,
-            "cv_folds": cv_folds,
-            "n_train": len(X_train),
-            "n_validation": len(X_val),
-            "n_test": len(X_test),
-            "n_corrupted": int(corrupted_mask.sum()),
-            "n_suspicious": None
-            if condition in {"clean_upper_bound", "noisy_baseline"}
-            else int(suspicious_mask.sum()),
-            **metrics,
-        }
-        if condition in {"remove_suspicious", "relabel_suspicious"}:
-            row.update(det_metrics)
-        else:
-            row.update({"det_precision": None, "det_recall": None, "det_f1": None})
-        rows.append(row)
+    fitted_models = {
+        condition: details["models"][
+            (
+                condition,
+                "none"
+                if condition in {"clean_upper_bound", "noisy_baseline"}
+                else detector,
+            )
+        ]
+        for condition in MODEL_CONDITIONS
+    }
+    detector_artifacts = details["detectors"][detector]
+    metrics = details["results"].copy()
+    metrics.insert(7, "cv_folds", cv_folds)
+    metrics.insert(9, "n_validation", len(details["X_validation"]))
 
     return {
-        "dataset": dataset,
+        "dataset": details["dataset"],
         "models": fitted_models,
-        "metrics": pd.DataFrame(rows),
-        "X_train": X_train,
-        "X_validation": X_val,
-        "X_test": X_test,
-        "y_train": y_train,
-        "y_train_noisy": y_train_noisy,
-        "y_validation": y_val,
-        "y_test": y_test,
-        "corrupted_mask": corrupted_mask,
-        "suspicious_mask": suspicious_mask,
-        "scores": scores,
+        "metrics": metrics,
+        "X_train": details["X_train"],
+        "X_validation": details["X_validation"],
+        "X_test": details["X_test"],
+        "y_train": details["y_train"],
+        "y_train_noisy": details["y_train_noisy"],
+        "y_validation": details["y_validation"],
+        "y_test": details["y_test"],
+        "corrupted_mask": details["corrupted_mask"],
+        "suspicious_mask": detector_artifacts["suspicious_mask"],
+        "scores": detector_artifacts["scores"],
     }
 
 
@@ -207,7 +116,14 @@ def save_final_model_set(artifacts, output_dir, metadata_path=None):
     for condition, model in artifacts["models"].items():
         path = output_dir / f"{condition}.joblib"
         joblib.dump(model, path)
-        model_paths.append({"condition": condition, "model_path": str(path)})
+        model_paths.append(
+            {
+                "condition": condition,
+                "model_path": str(path),
+                "model_sha256": sha256_file(path),
+                "model_bytes": path.stat().st_size,
+            }
+        )
 
     model_path_frame = pd.DataFrame(model_paths)
     metadata = metadata.merge(model_path_frame, on="condition", how="left")

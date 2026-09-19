@@ -144,6 +144,10 @@ def test_run_full_pipeline_quick_defaults_are_isolated(monkeypatch):
         "--output-dir results/figures/quick_pipeline" in command
         for command in flattened
     )
+    assert any(
+        "make_run_manifest.py" in command and "--quick" in command
+        for command in flattened
+    )
 
 
 def test_run_full_pipeline_can_include_model_artifacts(monkeypatch):
