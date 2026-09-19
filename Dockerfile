@@ -1,15 +1,10 @@
 FROM python:3.11-slim
 
-ARG VCS_REF=unknown
-
-LABEL org.opencontainers.image.revision=$VCS_REF
-
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONHASHSEED=0 \
     MPLBACKEND=Agg \
-    PIP_NO_CACHE_DIR=1 \
-    CSI6900_GIT_COMMIT=$VCS_REF
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
@@ -21,6 +16,12 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN python -m pip install --upgrade pip \
     && python -m pip install -r requirements.txt
+
+ARG VCS_REF=unknown
+
+LABEL org.opencontainers.image.revision=$VCS_REF
+
+ENV CSI6900_GIT_COMMIT=$VCS_REF
 
 COPY . .
 
