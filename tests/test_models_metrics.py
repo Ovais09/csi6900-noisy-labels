@@ -31,7 +31,7 @@ def test_classification_metrics_include_expected_keys():
     assert set(metrics) == {"accuracy", "f1_macro", "auroc"}
     assert 0.0 <= metrics["accuracy"] <= 1.0
     assert 0.0 <= metrics["f1_macro"] <= 1.0
-    assert np.isnan(metrics["auroc"]) or 0.0 <= metrics["auroc"] <= 1.0
+    assert 0.0 <= metrics["auroc"] <= 1.0
 
 
 def test_detection_metrics_handles_empty_predictions():
@@ -45,3 +45,8 @@ def test_detection_metrics_handles_empty_predictions():
         "det_recall": 0.0,
         "det_f1": 0.0,
     }
+
+
+def test_detection_metrics_rejects_mismatched_masks():
+    with np.testing.assert_raises(ValueError):
+        detection_metrics([True, False], [True])

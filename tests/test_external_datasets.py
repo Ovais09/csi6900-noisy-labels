@@ -6,6 +6,7 @@ import pytest
 
 from src.data.external_datasets import (
     download_dry_bean,
+    load_dry_bean,
     parse_dry_bean_arff,
     prepare_dry_bean_dataset,
 )
@@ -84,7 +85,10 @@ def test_download_dry_bean_publishes_only_valid_zip(tmp_path, monkeypatch):
 
     def fake_download(_url, temporary_path):
         with ZipFile(temporary_path, "w") as archive:
-            archive.writestr("payload.txt", "valid")
+            archive.writestr(
+                "DryBeanDataset/Dry_Bean_Dataset.arff",
+                TINY_DRY_BEAN_ARFF,
+            )
 
     monkeypatch.setattr("src.data.external_datasets.urlretrieve", fake_download)
 
@@ -93,3 +97,35 @@ def test_download_dry_bean_publishes_only_valid_zip(tmp_path, monkeypatch):
     assert result == destination
     assert destination.exists()
     assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_download_dry_bean_rejects_archive_without_dataset(tmp_path, monkeypatch):
+    destination = tmp_path / "DryBeanDataset.zip"
+
+    def fake_download(_url, temporary_path):
+        with ZipFile(temporary_path, "w") as archive:
+            archive.writestr("unrelated.txt", "not the dataset")
+
+    monkeypatch.setattr("src.data.external_datasets.urlretrieve", fake_download)
+
+    with pytest.raises(ValueError, match="expected ARFF"):
+        download_dry_bean(destination, url="https://example.invalid/data.zip")
+
+    assert not destination.exists()
+
+
+def test_load_dry_bean_rejects_invalid_cached_targets(tmp_path, monkeypatch):
+    processed_path = tmp_path / "dry_bean.csv"
+    pd.DataFrame(
+        {
+            "Area": [100.0, 120.0, 130.0],
+            "target": [0, 1.5, 1],
+        }
+    ).to_csv(processed_path, index=False)
+    monkeypatch.setattr(
+        "src.data.external_datasets.DRY_BEAN_PROCESSED_PATH",
+        processed_path,
+    )
+
+    with pytest.raises(ValueError, match="integer class IDs"):
+        load_dry_bean(auto_prepare=False)

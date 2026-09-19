@@ -1,12 +1,12 @@
 """Validate saved experiment results against the configured experiment matrix."""
 
 import argparse
-import math
 import sys
 from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +47,8 @@ REQUIRED_COLUMNS = {
 
 CLASSIFICATION_METRICS = ("accuracy", "f1_macro", "auroc")
 DETECTION_METRICS = ("det_precision", "det_recall", "det_f1")
+
+
 @dataclass(frozen=True)
 class ValidationIssue:
     status: str
@@ -80,10 +82,19 @@ def _issue(status, check, detail):
 def _rate_is_valid(series, allow_na: bool = False):
     if series.empty:
         return False
-    if not allow_na and series.isna().any():
+    numeric = pd.to_numeric(series, errors="coerce")
+    if not allow_na and numeric.isna().any():
         return False
-    valid = series.dropna().between(0.0, 1.0)
+    valid = numeric.dropna().between(0.0, 1.0)
     return bool(valid.all())
+
+
+def _integer_series_is_valid(series, allow_na: bool = False):
+    numeric = pd.to_numeric(series, errors="coerce")
+    if not allow_na and numeric.isna().any():
+        return False
+    values = numeric.dropna().to_numpy(dtype=float)
+    return bool(np.isfinite(values).all() and np.equal(values, np.floor(values)).all())
 
 
 def validate_results(df: pd.DataFrame, config: dict):
@@ -210,10 +221,7 @@ def validate_results(df: pd.DataFrame, config: dict):
     )
 
     for metric in CLASSIFICATION_METRICS:
-        if metric == "auroc":
-            valid = df[metric].dropna().between(0.0, 1.0).all()
-        else:
-            valid = _rate_is_valid(df[metric])
+        valid = _rate_is_valid(df[metric])
         status = "PASS" if valid else "FAIL"
         issues.append(_issue(status, f"{metric}_range", "Values are in [0, 1]"))
 
@@ -240,7 +248,10 @@ def validate_results(df: pd.DataFrame, config: dict):
 
     expected_suspicious = (cleaning_rows["noise_rate"] * cleaning_rows["n_train"]).round()
     suspicious_count_ok = bool(
-        (cleaning_rows["n_suspicious"] == expected_suspicious).all()
+        _integer_series_is_valid(cleaning_rows["n_suspicious"])
+        and (cleaning_rows["n_suspicious"] == expected_suspicious).all()
+        and (cleaning_rows["n_suspicious"] >= 0).all()
+        and (cleaning_rows["n_suspicious"] <= cleaning_rows["n_train"]).all()
     )
     issues.append(
         _issue(
@@ -257,23 +268,47 @@ def validate_results(df: pd.DataFrame, config: dict):
         )
     )
 
-    corrupted_ok = bool(df["n_corrupted"].notna().all()) and bool(
-        (df["n_corrupted"] >= 0).all()
+    corrupted_ok = bool(
+        _integer_series_is_valid(df["n_corrupted"])
+        and (df["n_corrupted"] >= 0).all()
+        and (df["n_corrupted"] <= df["n_train"]).all()
     )
     issues.append(
         _issue(
             "PASS" if corrupted_ok else "FAIL",
             "n_corrupted_presence",
-            "n_corrupted is present and non-negative",
+            "n_corrupted is an integer between zero and n_train",
         )
     )
 
-    train_test_ok = bool((df["n_train"] > 0).all() and (df["n_test"] > 0).all())
+    train_test_ok = bool(
+        _integer_series_is_valid(df["n_train"])
+        and _integer_series_is_valid(df["n_test"])
+        and (df["n_train"] > 0).all()
+        and (df["n_test"] > 0).all()
+    )
     issues.append(
         _issue(
             "PASS" if train_test_ok else "FAIL",
             "split_sizes",
-            "n_train and n_test are positive",
+            "n_train and n_test are positive integers",
+        )
+    )
+
+    symmetric_rows = df[df["noise_type"] == "symmetric"]
+    expected_symmetric_corruption = (
+        symmetric_rows["noise_rate"] * symmetric_rows["n_train"]
+    ).round()
+    symmetric_corruption_ok = bool(
+        (
+            symmetric_rows["n_corrupted"] == expected_symmetric_corruption
+        ).all()
+    )
+    issues.append(
+        _issue(
+            "PASS" if symmetric_corruption_ok else "FAIL",
+            "symmetric_corruption_count",
+            "Symmetric corruption count matches the configured noise fraction",
         )
     )
 
@@ -320,13 +355,11 @@ def validate_results(df: pd.DataFrame, config: dict):
         )
     )
 
-    finite_required = ["accuracy", "f1_macro"]
-    finite_ok = bool(
-        df[finite_required]
-        .apply(lambda column: column.map(math.isfinite))
-        .all()
-        .all()
+    numeric_metrics = df[list(CLASSIFICATION_METRICS)].apply(
+        pd.to_numeric,
+        errors="coerce",
     )
+    finite_ok = bool(np.isfinite(numeric_metrics.to_numpy(dtype=float)).all())
     issues.append(
         _issue(
             "PASS" if finite_ok else "FAIL",

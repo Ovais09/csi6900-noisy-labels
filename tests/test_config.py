@@ -35,7 +35,9 @@ def test_repository_experiment_config_is_valid():
         ("datasets", ["unknown"], "unsupported"),
         ("detectors", ["confidence", "confidence"], "duplicate"),
         ("noise_rates", [1.0], r"\[0, 1\)"),
+        ("noise_rates", [float("nan")], r"\[0, 1\)"),
         ("seeds", [True], "integers"),
+        ("seeds", [-1], r"2\*\*32"),
         ("cv_folds", 1, "at least 2"),
     ],
 )
@@ -52,6 +54,14 @@ def test_config_requires_output_paths():
     del config["output"]["summary_csv"]
 
     with pytest.raises(ValueError, match="summary_csv"):
+        validate_experiment_config(config)
+
+
+def test_config_requires_distinct_output_paths():
+    config = _valid_config()
+    config["output"]["summary_csv"] = config["output"]["results_csv"]
+
+    with pytest.raises(ValueError, match="must differ"):
         validate_experiment_config(config)
 
 

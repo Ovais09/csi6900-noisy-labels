@@ -47,6 +47,12 @@ def test_noise_rate_validation():
     with pytest.raises(ValueError):
         inject_class_dependent_noise(y, 1.1)
 
+    with pytest.raises(ValueError):
+        inject_symmetric_noise(y, float("nan"))
+
+    with pytest.raises(ValueError):
+        inject_symmetric_noise(y, True)
+
 
 def test_noise_injection_accepts_array_labels_with_range_index():
     y = np.array([0, 1] * 10)

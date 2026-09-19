@@ -44,6 +44,15 @@ def classification_metrics(model, X_test, y_test):
 def detection_metrics(true_corrupted_mask, predicted_suspicious_mask):
     """Evaluate how well a detector recovered the intentionally corrupted rows."""
 
+    true_corrupted_mask = np.asarray(true_corrupted_mask)
+    predicted_suspicious_mask = np.asarray(predicted_suspicious_mask)
+    if (
+        true_corrupted_mask.ndim != 1
+        or predicted_suspicious_mask.ndim != 1
+        or len(true_corrupted_mask) != len(predicted_suspicious_mask)
+    ):
+        raise ValueError("Detection masks must be one-dimensional and equally sized")
+
     return {
         "det_precision": precision_score(
             true_corrupted_mask,

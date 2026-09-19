@@ -47,3 +47,8 @@ def test_split_is_reproducible_and_rejects_mismatched_lengths():
 
     with pytest.raises(ValueError, match="same number"):
         make_train_val_test_split(dataset.X.iloc[:-1], dataset.y, random_state=123)
+
+
+def test_dataset_loader_rejects_invalid_names():
+    with pytest.raises(ValueError, match="non-empty string"):
+        load_dataset(None)

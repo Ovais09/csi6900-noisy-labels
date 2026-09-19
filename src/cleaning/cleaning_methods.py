@@ -1,17 +1,29 @@
 """Cleaning actions applied after suspicious-label detection."""
 
+import math
+from numbers import Real
+
 import numpy as np
 from sklearn.base import clone
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
 
 def _validate_fraction(fraction: float) -> None:
-    if not 0.0 <= fraction <= 1.0:
+    if (
+        isinstance(fraction, bool)
+        or not isinstance(fraction, Real)
+        or not math.isfinite(float(fraction))
+        or not 0.0 <= float(fraction) <= 1.0
+    ):
         raise ValueError(f"fraction must be between 0 and 1, got {fraction}")
 
 
 def _make_cv(y_train, cv: int, random_state: int) -> StratifiedKFold:
     y_array = np.asarray(y_train)
+    if isinstance(cv, bool) or not isinstance(cv, int) or cv < 2:
+        raise ValueError("cv must be an integer of at least 2")
+    if y_array.ndim != 1 or len(y_array) == 0:
+        raise ValueError("y_train must be a non-empty one-dimensional array")
     _, counts = np.unique(y_array, return_counts=True)
     max_splits = int(counts.min())
     n_splits = min(cv, max_splits)

@@ -43,6 +43,8 @@ def load_dataset(name: str) -> DatasetBundle:
         One of ``breast_cancer``, ``wine``, ``digits``, or ``dry_bean``.
     """
 
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("Dataset name must be a non-empty string")
     normalized_name = name.lower()
 
     if normalized_name == "breast_cancer":

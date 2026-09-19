@@ -114,6 +114,12 @@ def test_select_top_k_suspicious_validates_fraction():
     with pytest.raises(ValueError, match="one-dimensional"):
         select_top_k_suspicious([[0.1, 0.2]], fraction=0.5)
 
+    with pytest.raises(ValueError):
+        select_top_k_suspicious([0.1, 0.2], fraction=float("nan"))
+
+    with pytest.raises(ValueError):
+        select_top_k_suspicious([0.1, 0.2], fraction=True)
+
 
 def test_remove_suspicious_samples_keeps_unflagged_rows():
     dataset = load_dataset("wine")
@@ -185,3 +191,17 @@ def test_relabel_suspicious_samples_preserves_unflagged_labels():
 def test_probability_scoring_rejects_invalid_arrays(proba):
     with pytest.raises(ValueError):
         scores_from_probabilities(proba, np.array([0, 1]), detector="confidence")
+
+
+def test_combined_probability_scoring_rejects_invalid_weights():
+    proba = np.array([[0.8, 0.2], [0.3, 0.7]])
+
+    with pytest.raises(ValueError, match="weights"):
+        scores_from_probabilities(
+            proba,
+            np.array([0, 1]),
+            detector="combined",
+            confidence_weight=0.5,
+            disagreement_weight=0.5,
+            margin_weight=0.5,
+        )

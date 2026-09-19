@@ -10,6 +10,10 @@ SUPPORTED_DETECTORS = ("combined", "confidence", "disagreement", "margin")
 
 def _make_cv(y_train, cv: int, random_state: int) -> StratifiedKFold:
     y_array = np.asarray(y_train)
+    if isinstance(cv, bool) or not isinstance(cv, int) or cv < 2:
+        raise ValueError("cv must be an integer of at least 2")
+    if y_array.ndim != 1 or len(y_array) == 0:
+        raise ValueError("y_train must be a non-empty one-dimensional array")
     _, counts = np.unique(y_array, return_counts=True)
     max_splits = int(counts.min())
     n_splits = min(cv, max_splits)
@@ -27,6 +31,8 @@ def _make_cv(y_train, cv: int, random_state: int) -> StratifiedKFold:
 def cross_validated_probabilities(model, X_train, y_train, cv: int, random_state: int):
     """Return cross-validated class probabilities for each training row."""
 
+    if len(X_train) != len(y_train):
+        raise ValueError("X_train and y_train must contain the same number of rows")
     return cross_val_predict(
         clone(model),
         X_train,
@@ -40,7 +46,12 @@ def cross_validated_probabilities(model, X_train, y_train, cv: int, random_state
 def predicted_labels_from_probabilities(proba, y_train):
     """Convert probability columns into labels using the observed class order."""
 
+    proba = np.asarray(proba, dtype=float)
     classes = np.unique(np.asarray(y_train))
+    if proba.ndim != 2 or proba.shape != (len(y_train), len(classes)):
+        raise ValueError(
+            "proba shape must equal (number of labels, number of classes)"
+        )
     return classes[np.argmax(proba, axis=1)]
 
 
@@ -58,6 +69,8 @@ def scores_from_probabilities(
     proba = np.asarray(proba, dtype=float)
     y_array = np.asarray(y_train)
     classes = np.unique(y_array)
+    if y_array.ndim != 1 or len(classes) < 2:
+        raise ValueError("y_train must contain a one-dimensional multiclass target")
     if proba.ndim != 2:
         raise ValueError("proba must be a two-dimensional array")
     if proba.shape != (len(y_array), len(classes)):
@@ -83,6 +96,16 @@ def scores_from_probabilities(
     margin_suspiciousness = 1.0 - margin
 
     if normalized_detector == "combined":
+        weights = np.asarray(
+            [confidence_weight, disagreement_weight, margin_weight],
+            dtype=float,
+        )
+        if (
+            not np.isfinite(weights).all()
+            or np.any(weights < 0.0)
+            or not np.isclose(weights.sum(), 1.0)
+        ):
+            raise ValueError("combined detector weights must be non-negative and sum to 1")
         return (
             confidence_weight * confidence
             + disagreement_weight * disagreement

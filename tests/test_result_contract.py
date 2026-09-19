@@ -136,3 +136,18 @@ def test_validator_rejects_missing_detection_metrics():
 
     assert "det_f1_presence" in failures
     assert "detector_metric_consistency" in failures
+
+
+def test_validator_rejects_missing_auroc_and_impossible_counts():
+    malformed = _results().copy()
+    malformed.loc[0, "auroc"] = float("nan")
+    malformed.loc[1, "n_corrupted"] = malformed.loc[1, "n_train"] + 1
+    malformed.loc[2, "n_suspicious"] = 3.5
+
+    report = validation_report(validate_results(malformed, _config()))
+    failures = set(report.loc[report["status"] == "FAIL", "check"])
+
+    assert "auroc_range" in failures
+    assert "finite_metrics" in failures
+    assert "n_corrupted_presence" in failures
+    assert "n_suspicious_count" in failures
