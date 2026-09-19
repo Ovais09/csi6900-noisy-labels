@@ -10,6 +10,7 @@ from src.utils.provenance import (
     build_run_manifest,
     dataframe_sha256,
     dataset_fingerprint,
+    git_state,
     sha256_file,
 )
 
@@ -81,3 +82,10 @@ def test_build_and_save_run_manifest(tmp_path):
     assert saved["datasets"][0]["name"] == "wine"
     assert saved["runtime"]["dependencies"]["scikit-learn"]
     assert saved["git"] == {"commit": None, "dirty": None}
+
+
+def test_git_state_uses_container_build_revision_without_git(tmp_path, monkeypatch):
+    revision = "abc123def456"
+    monkeypatch.setenv("CSI6900_GIT_COMMIT", revision)
+
+    assert git_state(tmp_path) == {"commit": revision, "dirty": None}

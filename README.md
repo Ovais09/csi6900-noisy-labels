@@ -43,8 +43,13 @@ Start Docker Desktop first if you are on macOS.
 Build the image:
 
 ```bash
-docker build -t csi6900-noisy-labels .
+docker build \
+  --build-arg VCS_REF="$(git rev-parse HEAD)" \
+  -t csi6900-noisy-labels .
 ```
+
+The revision build argument lets manifests created inside the image identify
+the exact source commit even though `.git` is excluded from the build context.
 
 If you see `failed to connect to the docker API at unix:///var/run/docker.sock`,
 the Docker CLI is installed but no Docker backend is running. Fix it with one of:

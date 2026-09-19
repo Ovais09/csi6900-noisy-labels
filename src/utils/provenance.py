@@ -1,6 +1,7 @@
 """Reproducibility fingerprints and run-manifest helpers."""
 
 import hashlib
+import os
 import platform
 import subprocess
 import sys
@@ -23,6 +24,7 @@ TRACKED_PACKAGES = (
     "pyyaml",
     "joblib",
 )
+SOURCE_COMMIT_ENV = "CSI6900_GIT_COMMIT"
 
 
 def sha256_file(path, chunk_size: int = 1024 * 1024) -> str:
@@ -90,6 +92,9 @@ def git_state(project_root) -> dict:
             text=True,
         ).stdout
     except (FileNotFoundError, subprocess.CalledProcessError):
+        build_commit = os.environ.get(SOURCE_COMMIT_ENV, "").strip()
+        if build_commit and build_commit.lower() != "unknown":
+            return {"commit": build_commit, "dirty": None}
         return {"commit": None, "dirty": None}
 
     return {"commit": commit, "dirty": bool(status.strip())}

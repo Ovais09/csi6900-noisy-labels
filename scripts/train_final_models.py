@@ -1,7 +1,9 @@
 """Train and save final comparison models for one noisy-label setting."""
 
 import argparse
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 import joblib
@@ -12,7 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.evaluation.experiment_runner import run_single_experiment_details
-from src.utils.io import save_dataframe
+from src.utils.io import save_dataframe_atomic
 from src.utils.provenance import sha256_file
 
 
@@ -36,9 +38,8 @@ def train_final_model_set(
     """Train clean, noisy, remove-cleaned, and relabeled models.
 
     Returns a dictionary containing fitted models, metrics, split data, and
-    label-noise metadata. This is intentionally separate from the main
-    experiment runner because the main runner saves scalar metrics, while this
-    function keeps fitted estimators for diagnostics and reproducibility checks.
+    label-noise metadata. It uses the same experiment engine as the main matrix
+    while retaining fitted estimators for diagnostics and reproducibility checks.
     """
 
     details = run_single_experiment_details(
@@ -115,7 +116,22 @@ def save_final_model_set(artifacts, output_dir, metadata_path=None):
     model_paths = []
     for condition, model in artifacts["models"].items():
         path = output_dir / f"{condition}.joblib"
-        joblib.dump(model, path)
+        temporary_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                dir=output_dir,
+                delete=False,
+            ) as handle:
+                temporary_path = Path(handle.name)
+            joblib.dump(model, temporary_path)
+            with temporary_path.open("rb") as handle:
+                os.fsync(handle.fileno())
+            temporary_path.replace(path)
+        finally:
+            if temporary_path is not None and temporary_path.exists():
+                temporary_path.unlink()
         model_paths.append(
             {
                 "condition": condition,
@@ -129,7 +145,7 @@ def save_final_model_set(artifacts, output_dir, metadata_path=None):
     metadata = metadata.merge(model_path_frame, on="condition", how="left")
 
     metadata_path = Path(metadata_path) if metadata_path else output_dir / "model_metadata.csv"
-    save_dataframe(metadata, metadata_path)
+    save_dataframe_atomic(metadata, metadata_path)
     return metadata
 
 
