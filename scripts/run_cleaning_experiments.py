@@ -73,7 +73,7 @@ def _completed_keys(output_path, detector_methods):
     return complete_combo_keys(df, detector_methods)
 
 
-def _prepare_resume_file(output_path, detector_methods):
+def _prepare_resume_file(output_path, detector_methods, allowed_combo_keys=None):
     """Drop incomplete combinations before safely resuming a result file."""
 
     path = Path(output_path)
@@ -82,6 +82,8 @@ def _prepare_resume_file(output_path, detector_methods):
 
     existing = pd.read_csv(path)
     completed = complete_combo_keys(existing, detector_methods)
+    if allowed_combo_keys is not None:
+        completed.intersection_update(allowed_combo_keys)
     row_keys = existing.loc[:, list(COMBO_COLUMNS)].apply(
         lambda row: combo_key(*row),
         axis=1,
@@ -91,7 +93,8 @@ def _prepare_resume_file(output_path, detector_methods):
     removed_rows = len(existing) - len(retained)
     if removed_rows:
         print(
-            f"Removed {removed_rows} incomplete result rows before resuming "
+            f"Removed {removed_rows} incomplete or out-of-config result rows "
+            "before resuming "
             f"{output_path}"
         )
         save_dataframe_atomic(retained, path)
@@ -99,11 +102,11 @@ def _prepare_resume_file(output_path, detector_methods):
     return completed
 
 
-def _append_results(result, output_path):
+def _append_results(result, output_path, replace: bool = False):
     """Atomically append one complete experiment combination."""
 
     path = Path(output_path)
-    if path.exists():
+    if path.exists() and not replace:
         existing = pd.read_csv(path)
         combined = (
             result.reset_index(drop=True)
@@ -129,24 +132,32 @@ def main():
     cv_folds = int(config.get("cv_folds", 5))
     detector_methods = config.get("detectors", ["combined"])
     output_file = Path(output_path)
-    if output_file.exists() and not args.resume:
-        output_file.unlink()
+
+    combinations = list(
+        product(
+            config["datasets"],
+            config["noise_types"],
+            config["noise_rates"],
+            config["models"],
+            config["seeds"],
+        )
+    )
+    expected_keys = {_combo_key(*combination) for combination in combinations}
 
     completed_keys = (
-        _prepare_resume_file(output_path, detector_methods) if args.resume else set()
+        _prepare_resume_file(
+            output_path,
+            detector_methods,
+            allowed_combo_keys=expected_keys,
+        )
+        if args.resume
+        else set()
     )
-
-    combinations = product(
-        config["datasets"],
-        config["noise_types"],
-        config["noise_rates"],
-        config["models"],
-        config["seeds"],
-    )
+    replace_existing = not args.resume
 
     for dataset, noise_type, noise_rate, model, seed in combinations:
-        combo_key = _combo_key(dataset, noise_type, noise_rate, model, seed)
-        if combo_key in completed_keys:
+        current_key = _combo_key(dataset, noise_type, noise_rate, model, seed)
+        if current_key in completed_keys:
             print(
                 "Skipping completed "
                 f"dataset={dataset}, "
@@ -177,7 +188,8 @@ def main():
             cv_folds=cv_folds,
             detector_methods=detector_methods,
         )
-        _append_results(result, output_path)
+        _append_results(result, output_path, replace=replace_existing)
+        replace_existing = False
 
     if not output_file.exists():
         empty_results = pd.DataFrame()

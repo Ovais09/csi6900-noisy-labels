@@ -99,6 +99,22 @@ def test_experiment_details_use_the_same_results_and_models():
     assert len(details["X_validation"]) == len(details["y_validation"])
 
 
+def test_experiment_details_can_release_fitted_models():
+    details = run_single_experiment_details(
+        dataset_name="breast_cancer",
+        noise_type="symmetric",
+        noise_rate=0.1,
+        model_name="logistic_regression",
+        random_state=42,
+        cv_folds=3,
+        detector_methods=("confidence",),
+        retain_models=False,
+    )
+
+    assert details["models"] == {}
+    assert len(details["results"]) == 4
+
+
 @pytest.mark.parametrize(
     "detectors",
     [(), ("confidence", "confidence"), ("unknown",)],

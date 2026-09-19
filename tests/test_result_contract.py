@@ -68,6 +68,40 @@ def test_resume_removes_partial_combo_before_rerun(tmp_path):
     assert len(_completed_keys(output_path, DETECTORS)) == 1
 
 
+def test_resume_removes_complete_rows_outside_current_config(tmp_path):
+    output_path = tmp_path / "results.csv"
+    expected = _results()
+    unexpected = expected.copy()
+    unexpected["random_state"] = 999
+    pd.concat([expected, unexpected], ignore_index=True).to_csv(output_path, index=False)
+    allowed = {
+        combo_key("breast_cancer", "symmetric", 0.1, "logistic_regression", 42)
+    }
+
+    completed = _prepare_resume_file(
+        output_path,
+        DETECTORS,
+        allowed_combo_keys=allowed,
+    )
+    retained = pd.read_csv(output_path)
+
+    assert completed == allowed
+    assert set(retained["random_state"]) == {42}
+
+
+def test_atomic_append_can_replace_an_existing_result_file(tmp_path):
+    output_path = tmp_path / "results.csv"
+    stale = _results().copy()
+    stale["random_state"] = 999
+    stale.to_csv(output_path, index=False)
+
+    _append_results(_results(), output_path, replace=True)
+    replaced = pd.read_csv(output_path)
+
+    assert len(replaced) == len(_results())
+    assert set(replaced["random_state"]) == {42}
+
+
 def test_resume_rejects_result_file_without_contract_columns(tmp_path):
     output_path = tmp_path / "bad.csv"
     pd.DataFrame({"dataset": ["breast_cancer"]}).to_csv(output_path, index=False)

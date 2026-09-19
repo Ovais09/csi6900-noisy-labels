@@ -95,6 +95,7 @@ def run_single_experiment_details(
     random_state: int = 42,
     cv_folds: int = 5,
     detector_methods=None,
+    retain_models: bool = True,
 ):
     """Fit one experiment and retain models and intermediate artifacts."""
 
@@ -129,7 +130,8 @@ def run_single_experiment_details(
 
     clean_model = clone(base_model)
     clean_model.fit(X_train, y_train)
-    fitted_models[("clean_upper_bound", "none")] = clean_model
+    if retain_models:
+        fitted_models[("clean_upper_bound", "none")] = clean_model
     clean_metrics = classification_metrics(clean_model, X_test, y_test)
     rows.append(
         {
@@ -150,10 +152,13 @@ def run_single_experiment_details(
             "det_f1": None,
         }
     )
+    if not retain_models:
+        del clean_model
 
     noisy_model = clone(base_model)
     noisy_model.fit(X_train, y_train_noisy)
-    fitted_models[("noisy_baseline", "none")] = noisy_model
+    if retain_models:
+        fitted_models[("noisy_baseline", "none")] = noisy_model
     noisy_metrics = classification_metrics(noisy_model, X_test, y_test)
     rows.append(
         {
@@ -174,6 +179,8 @@ def run_single_experiment_details(
             "det_f1": None,
         }
     )
+    if not retain_models:
+        del noisy_model
 
     cv_proba = cross_validated_probabilities(
         base_model,
@@ -201,7 +208,8 @@ def run_single_experiment_details(
         )
         removed_model = clone(base_model)
         removed_model.fit(X_train_removed, y_train_removed)
-        fitted_models[("remove_suspicious", detector)] = removed_model
+        if retain_models:
+            fitted_models[("remove_suspicious", detector)] = removed_model
         removed_metrics = classification_metrics(removed_model, X_test, y_test)
         rows.append(
             {
@@ -225,7 +233,8 @@ def run_single_experiment_details(
         y_train_relabel.iloc[suspicious_mask] = cv_pred_labels[suspicious_mask]
         relabel_model = clone(base_model)
         relabel_model.fit(X_train, y_train_relabel)
-        fitted_models[("relabel_suspicious", detector)] = relabel_model
+        if retain_models:
+            fitted_models[("relabel_suspicious", detector)] = relabel_model
         relabel_metrics = classification_metrics(relabel_model, X_test, y_test)
         rows.append(
             {
@@ -252,6 +261,8 @@ def run_single_experiment_details(
             "y_train_relabel": y_train_relabel,
             "removed_train_indices": X_train_removed.index,
         }
+        if not retain_models:
+            del removed_model, relabel_model
 
     return {
         "results": pd.DataFrame(rows),
@@ -290,5 +301,6 @@ def run_single_experiment(
         random_state=random_state,
         cv_folds=cv_folds,
         detector_methods=detector_methods,
+        retain_models=False,
     )
     return details["results"]
