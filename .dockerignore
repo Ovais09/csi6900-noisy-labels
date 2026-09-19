@@ -5,6 +5,10 @@ __pycache__/
 .DS_Store
 .ipynb_checkpoints/
 .pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 datasets/raw/*
 datasets/processed/*

@@ -160,8 +160,11 @@ Run static analysis and branch coverage:
 ruff check src scripts tests main.py
 coverage erase
 coverage run --branch --source=src,scripts -m pytest -q
-coverage report -m
+coverage report --include='src/*' --show-missing --fail-under=85
 ```
+
+GitHub Actions runs the same lint and coverage checks on Python 3.9 and 3.11,
+then builds the Docker image and runs the test suite inside it.
 
 ## Notebook Workflow
 
