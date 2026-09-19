@@ -56,7 +56,8 @@ def test_dataset_fingerprint_contains_dimensions_and_content_hash():
     assert len(fingerprint["content_sha256"]) == 64
 
 
-def test_build_and_save_run_manifest(tmp_path):
+def test_build_and_save_run_manifest(tmp_path, monkeypatch):
+    monkeypatch.delenv("CSI6900_GIT_COMMIT", raising=False)
     results_path = tmp_path / "results.csv"
     pd.DataFrame({"accuracy": [0.9], "condition": ["clean"]}).to_csv(
         results_path,
