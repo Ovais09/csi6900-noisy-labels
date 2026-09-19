@@ -14,7 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.evaluation.experiment_runner import run_single_experiment
 from src.evaluation.result_contract import COMBO_COLUMNS, combo_key, complete_combo_keys
 from src.utils.config import load_experiment_config, quick_experiment_config
-from src.utils.io import save_dataframe, save_dataframe_atomic
+from src.utils.io import load_dataframe, save_dataframe, save_dataframe_atomic
 from src.utils.seeds import set_global_seed
 
 
@@ -69,7 +69,7 @@ def _completed_keys(output_path, detector_methods):
     if not path.exists():
         return set()
 
-    df = pd.read_csv(path)
+    df = load_dataframe(path)
     return complete_combo_keys(df, detector_methods)
 
 
@@ -80,7 +80,7 @@ def _prepare_resume_file(output_path, detector_methods, allowed_combo_keys=None)
     if not path.exists():
         return set()
 
-    existing = pd.read_csv(path)
+    existing = load_dataframe(path)
     completed = complete_combo_keys(existing, detector_methods)
     if allowed_combo_keys is not None:
         completed.intersection_update(allowed_combo_keys)
@@ -107,7 +107,7 @@ def _append_results(result, output_path, replace: bool = False):
 
     path = Path(output_path)
     if path.exists() and not replace:
-        existing = pd.read_csv(path)
+        existing = load_dataframe(path)
         combined = (
             result.reset_index(drop=True)
             if existing.empty

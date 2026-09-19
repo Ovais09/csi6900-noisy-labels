@@ -115,6 +115,19 @@ docker run --rm \
   python scripts/run_full_pipeline.py
 ```
 
+Build the complete final artifact set and freeze its checksums:
+
+```bash
+python scripts/finalize_release.py
+```
+
+To rebuild derived outputs, models, and diagnostics from an existing complete
+matrix without retraining every combination:
+
+```bash
+python scripts/finalize_release.py --skip-download --skip-training
+```
+
 ## Quick Verification
 
 Run one small experiment combination:
@@ -275,6 +288,12 @@ confusion matrices, ROC curves, precision-recall curves, macro-F1 summaries,
 and per-class classification reports. `scripts/train_final_models.py` saves the
 four fitted comparison models for that same setting.
 
+`scripts/audit_release.py` independently recomputes summary and analysis
+tables, validates every canonical PNG, reloads saved models and reproduces
+their metrics, verifies exported datasets, checks provenance, and freezes a
+SHA-256 inventory. Run `python scripts/audit_release.py` after freezing to
+detect any changed or missing artifact.
+
 Generated result files are intentionally ignored by git.
 
 ## Done Criteria
@@ -289,3 +308,4 @@ Generated result files are intentionally ignored by git.
 - Classification metrics and detection metrics are saved.
 - Summary CSV tables and plots are generated for the report.
 - The full result contract and reproducibility manifest validate successfully.
+- The final release audit and frozen artifact inventory validate successfully.

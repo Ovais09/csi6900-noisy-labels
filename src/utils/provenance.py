@@ -12,6 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.data.load_datasets import load_dataset
+from src.utils.io import load_dataframe
 
 TRACKED_PACKAGES = (
     "numpy",
@@ -104,7 +105,7 @@ def build_run_manifest(config, config_path, results_path, project_root) -> dict:
 
     config_path = Path(config_path)
     results_path = Path(results_path)
-    results = pd.read_csv(results_path)
+    results = load_dataframe(results_path)
 
     return {
         "schema_version": 1,

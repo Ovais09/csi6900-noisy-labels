@@ -11,7 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.data.load_datasets import load_dataset
-from src.utils.io import save_dataframe
+from src.utils.io import save_dataframe_atomic
 from src.utils.provenance import sha256_file
 
 DEFAULT_DATASETS = ("breast_cancer", "wine", "digits")
@@ -26,7 +26,7 @@ def export_dataset(dataset_name: str, output_dir) -> dict:
     df = dataset.X.copy()
     df["target"] = dataset.y
 
-    saved_path = save_dataframe(df, output_path)
+    saved_path = save_dataframe_atomic(df, output_path)
     return {
         "dataset": dataset.name,
         "path": str(saved_path),
@@ -46,7 +46,7 @@ def export_datasets(dataset_names, output_dir="datasets/processed") -> pd.DataFr
         for dataset_name in dataset_names
     ]
     manifest = pd.DataFrame(manifest_rows)
-    save_dataframe(manifest, Path(output_dir) / "manifest.csv")
+    save_dataframe_atomic(manifest, Path(output_dir) / "manifest.csv")
     return manifest
 
 

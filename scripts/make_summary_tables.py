@@ -10,7 +10,42 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils.io import save_dataframe
+from src.utils.io import load_dataframe, save_dataframe
+
+
+def summarize_results(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate experiment metrics across random seeds."""
+
+    df = df.copy()
+    if "detector" not in df.columns:
+        df["detector"] = "combined"
+
+    group_cols = [
+        "dataset",
+        "noise_type",
+        "noise_rate",
+        "model",
+        "condition",
+        "detector",
+    ]
+
+    return (
+        df.groupby(group_cols, dropna=False)
+        .agg(
+            accuracy_mean=("accuracy", "mean"),
+            accuracy_std=("accuracy", "std"),
+            f1_macro_mean=("f1_macro", "mean"),
+            f1_macro_std=("f1_macro", "std"),
+            auroc_mean=("auroc", "mean"),
+            auroc_std=("auroc", "std"),
+            det_precision_mean=("det_precision", "mean"),
+            det_recall_mean=("det_recall", "mean"),
+            det_f1_mean=("det_f1", "mean"),
+            n_corrupted_mean=("n_corrupted", "mean"),
+            n_suspicious_mean=("n_suspicious", "mean"),
+        )
+        .reset_index()
+    )
 
 
 def parse_args():
@@ -30,36 +65,8 @@ def parse_args():
 
 def main():
     args = parse_args()
-    df = pd.read_csv(args.input)
-    if "detector" not in df.columns:
-        df["detector"] = "combined"
-
-    group_cols = [
-        "dataset",
-        "noise_type",
-        "noise_rate",
-        "model",
-        "condition",
-        "detector",
-    ]
-
-    summary = (
-        df.groupby(group_cols, dropna=False)
-        .agg(
-            accuracy_mean=("accuracy", "mean"),
-            accuracy_std=("accuracy", "std"),
-            f1_macro_mean=("f1_macro", "mean"),
-            f1_macro_std=("f1_macro", "std"),
-            auroc_mean=("auroc", "mean"),
-            auroc_std=("auroc", "std"),
-            det_precision_mean=("det_precision", "mean"),
-            det_recall_mean=("det_recall", "mean"),
-            det_f1_mean=("det_f1", "mean"),
-            n_corrupted_mean=("n_corrupted", "mean"),
-            n_suspicious_mean=("n_suspicious", "mean"),
-        )
-        .reset_index()
-    )
+    df = load_dataframe(args.input)
+    summary = summarize_results(df)
 
     saved_path = save_dataframe(summary, args.output)
     print(f"Saved summary to {saved_path}")

@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils.io import save_dataframe
+from src.utils.io import load_dataframe, save_dataframe
 
 BASE_COLUMNS = ["dataset", "noise_type", "noise_rate", "model", "random_state"]
 SETTING_COLUMNS = ["dataset", "noise_type", "noise_rate", "model"]
@@ -33,7 +33,11 @@ def condition_summary(df: pd.DataFrame) -> pd.DataFrame:
             rows=("accuracy", "size"),
         )
         .reset_index()
-        .sort_values(["dataset", "accuracy_mean"], ascending=[True, False])
+        .sort_values(
+            ["dataset", "accuracy_mean", "condition", "detector"],
+            ascending=[True, False, True, True],
+            kind="mergesort",
+        )
     )
 
 
@@ -63,7 +67,11 @@ def detector_ranking(df: pd.DataFrame) -> pd.DataFrame:
     )
     return (
         detection.merge(downstream, on="detector", validate="one_to_one")
-        .sort_values(["det_f1_mean", "accuracy_mean"], ascending=False)
+        .sort_values(
+            ["det_f1_mean", "accuracy_mean", "detector"],
+            ascending=[False, False, True],
+            kind="mergesort",
+        )
     )
 
 
@@ -85,8 +93,9 @@ def detector_breakdown(df: pd.DataFrame) -> pd.DataFrame:
         )
         .reset_index()
         .sort_values(
-            ["dataset", "noise_type", "det_f1_mean"],
-            ascending=[True, True, False],
+            ["dataset", "noise_type", "det_f1_mean", "detector"],
+            ascending=[True, True, False, True],
+            kind="mergesort",
         )
     )
 
@@ -120,7 +129,11 @@ def cleaning_gain_summary(df: pd.DataFrame) -> pd.DataFrame:
             rows=("accuracy_gain", "size"),
         )
         .reset_index()
-        .sort_values(["mean_gain", "pct_positive"], ascending=False)
+        .sort_values(
+            ["mean_gain", "pct_positive", "condition", "detector"],
+            ascending=[False, False, True, True],
+            kind="mergesort",
+        )
     )
 
 
@@ -150,7 +163,17 @@ def noise_impact_summary(df: pd.DataFrame) -> pd.DataFrame:
             rows=("accuracy_drop", "size"),
         )
         .reset_index()
-        .sort_values("accuracy_drop_mean", ascending=False)
+        .sort_values(
+            [
+                "accuracy_drop_mean",
+                "dataset",
+                "noise_type",
+                "noise_rate",
+                "model",
+            ],
+            ascending=[False, True, True, True, True],
+            kind="mergesort",
+        )
     )
 
 
@@ -171,8 +194,10 @@ def best_cleaning_by_setting(df: pd.DataFrame) -> pd.DataFrame:
 
     rank_cols = ["dataset", "noise_type", "noise_rate", "model"]
     order = mean_scores.sort_values(
-        rank_cols + ["accuracy_mean", "f1_macro_mean", "det_f1_mean"],
-        ascending=[True, True, True, True, False, False, False],
+        rank_cols
+        + ["accuracy_mean", "f1_macro_mean", "det_f1_mean", "condition", "detector"],
+        ascending=[True, True, True, True, False, False, False, True, True],
+        kind="mergesort",
     )
     return order.groupby(rank_cols, as_index=False).head(1).reset_index(drop=True)
 
@@ -313,8 +338,9 @@ def paired_cleaning_comparisons(
         ["scope", "metric"], group_keys=False
     )["wilcoxon_p"].transform(_holm_adjust)
     return comparisons.sort_values(
-        ["scope", "metric", "mean_gain"],
-        ascending=[True, True, False],
+        ["scope", "metric", "mean_gain", "condition", "detector"],
+        ascending=[True, True, False, True, True],
+        kind="mergesort",
     ).reset_index(drop=True)
 
 
@@ -349,7 +375,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    df = pd.read_csv(args.input)
+    df = load_dataframe(args.input)
     output_dir = Path(args.output_dir)
 
     for name, table in make_all_analysis_tables(df).items():

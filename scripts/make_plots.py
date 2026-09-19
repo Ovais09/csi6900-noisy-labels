@@ -1,10 +1,16 @@
 """Create figures from experiment result CSVs."""
 
 import argparse
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import pandas as pd
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.utils.io import load_dataframe
 
 try:
     import seaborn as sns
@@ -139,7 +145,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    df = add_plot_labels(pd.read_csv(args.input))
+    df = add_plot_labels(load_dataframe(args.input))
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 

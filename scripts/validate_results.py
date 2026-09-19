@@ -22,7 +22,7 @@ from src.evaluation.result_contract import (
     expected_row_signatures,
 )
 from src.utils.config import load_experiment_config
-from src.utils.io import save_dataframe
+from src.utils.io import load_dataframe, save_dataframe
 
 REQUIRED_COLUMNS = {
     "dataset",
@@ -400,7 +400,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    df = pd.read_csv(args.results)
+    df = load_dataframe(args.results)
     config = load_experiment_config(args.config)
 
     issues = validate_results(df, config)

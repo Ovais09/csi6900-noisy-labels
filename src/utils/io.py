@@ -24,6 +24,12 @@ def load_yaml(path):
         return yaml.safe_load(handle)
 
 
+def load_dataframe(path) -> pd.DataFrame:
+    """Load a CSV while preserving round-trippable floating-point values."""
+
+    return pd.read_csv(path, float_precision="round_trip")
+
+
 def save_dataframe(df: pd.DataFrame, path) -> Path:
     """Save a DataFrame to CSV after creating the output directory."""
 

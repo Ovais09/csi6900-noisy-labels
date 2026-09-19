@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from scripts.finalize_release import build_finalization_commands
 from scripts.make_analysis_tables import (
     _holm_adjust,
     make_all_analysis_tables,
@@ -71,6 +72,20 @@ def test_make_all_analysis_tables_returns_expected_tables():
     assert all(not table.empty for table in tables.values())
     assert set(tables["detector_ranking"]["detector"]) == {"combined", "confidence"}
     assert set(tables["detector_ranking"]["detection_evaluations"]) == {1}
+
+
+def test_analysis_table_order_is_stable_after_input_shuffle():
+    results = _small_results()
+    first = make_all_analysis_tables(results)
+    shuffled = results.sample(frac=1.0, random_state=2026).reset_index(drop=True)
+    second = make_all_analysis_tables(shuffled)
+
+    for name in first:
+        pd.testing.assert_frame_equal(
+            first[name].reset_index(drop=True),
+            second[name].reset_index(drop=True),
+            check_exact=True,
+        )
 
 
 def test_paired_comparisons_have_complete_pairing_and_valid_rates():
@@ -238,3 +253,32 @@ def test_run_full_pipeline_combines_diagnostics_and_model_saving(monkeypatch):
     assert any("make_model_diagnostics.py" in command for command in flattened)
     assert any("--save-models" in command for command in flattened)
     assert not any("train_final_models.py" in command for command in flattened)
+
+
+def test_finalize_release_builds_models_diagnostics_and_frozen_audit():
+    args = type(
+        "Args",
+        (),
+        {
+            "config": "configs/experiment_config.yaml",
+            "skip_download": True,
+            "skip_training": True,
+            "resume": False,
+        },
+    )()
+
+    commands = build_finalization_commands(args)
+    flattened = [" ".join(command) for command in commands]
+
+    assert any("export_sklearn_datasets.py" in command for command in flattened)
+    assert any(
+        "run_full_pipeline.py" in command
+        and "--skip-training" in command
+        and "--save-final-models" in command
+        and "--make-model-diagnostics" in command
+        for command in flattened
+    )
+    assert any(
+        "audit_release.py" in command and "--freeze" in command
+        for command in flattened
+    )

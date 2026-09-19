@@ -11,7 +11,7 @@ from scipy.io import arff
 from sklearn.preprocessing import LabelEncoder
 
 from src.data.load_datasets import DatasetBundle
-from src.utils.io import save_dataframe_atomic
+from src.utils.io import load_dataframe, save_dataframe_atomic
 
 DRY_BEAN_URL = (
     "https://archive.ics.uci.edu/ml/machine-learning-databases/"
@@ -163,7 +163,7 @@ def prepare_dry_bean_dataset(
     label_mapping_path = Path(label_mapping_path)
 
     if processed_path.exists() and label_mapping_path.exists() and not force:
-        _validated_dry_bean_parts(pd.read_csv(processed_path))
+        _validated_dry_bean_parts(load_dataframe(processed_path))
         return processed_path
 
     zip_path = download_dry_bean(zip_path=zip_path)
@@ -190,7 +190,7 @@ def load_dry_bean(auto_prepare: bool = True) -> DatasetBundle:
             )
         prepare_dry_bean_dataset()
 
-    df = pd.read_csv(DRY_BEAN_PROCESSED_PATH)
+    df = load_dataframe(DRY_BEAN_PROCESSED_PATH)
     X, y = _validated_dry_bean_parts(df)
 
     return DatasetBundle(

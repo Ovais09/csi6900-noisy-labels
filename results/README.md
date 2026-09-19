@@ -13,6 +13,10 @@ files preserve the directory structure in a clean clone.
   the complete experiment matrix.
 - `logs/run_manifest.json`: config, dataset, result, environment, and Git
   fingerprints for reproducibility.
+- `logs/release_manifest.json`: frozen sizes and SHA-256 hashes for every
+  canonical dataset, table, figure, diagnostic, model, and provenance file.
+- `logs/final_audit.json`: pass/fail certification for the complete code/results
+  release.
 
 ## Analysis Tables
 
@@ -42,4 +46,10 @@ Regenerate all derived outputs from an existing full result CSV with:
 
 ```bash
 python scripts/run_full_pipeline.py --skip-download --skip-training
+```
+
+Regenerate and certify the complete final release with:
+
+```bash
+python scripts/finalize_release.py --skip-download --skip-training
 ```
