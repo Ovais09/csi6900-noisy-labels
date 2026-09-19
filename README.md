@@ -109,10 +109,11 @@ docker run --rm \
 Run one small experiment combination:
 
 ```bash
-python scripts/run_cleaning_experiments.py --quick --output results/tables/quick_experiment_results.csv
-python scripts/make_summary_tables.py --input results/tables/quick_experiment_results.csv --output results/tables/quick_summary_results.csv
-python scripts/make_plots.py --input results/tables/quick_experiment_results.csv --output-dir results/figures/quick
+python scripts/run_full_pipeline.py --quick --skip-download
 ```
+
+Quick mode writes only to `quick_pipeline_*` paths, so it cannot overwrite the
+full experiment CSV, summary tables, analysis tables, or figures.
 
 Export the built-in datasets as local processed CSV files:
 
@@ -219,9 +220,11 @@ Main outputs:
 - `results/tables/cleaning_conditions.csv`
 - `results/tables/validation_report.csv`
 - `results/tables/analysis/*.csv`
+- `results/tables/analysis/paired_cleaning_comparisons.csv`
 - `results/tables/model_diagnostics/*.csv`
 - `results/figures/*.png`
 - `results/figures/model_diagnostics/*.png`
+- `results/logs/run_manifest.json`
 - `results/models/**/clean_upper_bound.joblib`
 - `results/models/**/noisy_baseline.joblib`
 - `results/models/**/remove_suspicious.joblib`
@@ -231,6 +234,18 @@ Main outputs:
 `configs/experiment_config.yaml`. It fails loudly if combinations are missing,
 row counts are wrong, duplicate result rows exist, or metric columns contain
 invalid values.
+
+`scripts/make_analysis_tables.py` computes cleaning gains after pairing each
+cleaned result with the noisy baseline from the same dataset, noise type, noise
+rate, model, and seed. For statistical comparisons, seeds are averaged within
+each experimental setting before bootstrap confidence intervals and
+Holm-corrected Wilcoxon tests are calculated. This avoids treating repeated
+seeds as independent experimental settings.
+
+`scripts/make_run_manifest.py` records SHA-256 fingerprints for the config,
+datasets, and result CSV together with package versions, Python/platform
+details, and the Git revision. Use this file to identify exactly what produced
+a result set.
 
 `scripts/make_model_diagnostics.py` retrains one selected setting and saves
 confusion matrices, ROC curves, precision-recall curves, macro-F1 summaries,
@@ -250,3 +265,4 @@ Generated result files are intentionally ignored by git.
 - Clean, noisy, remove, and relabel conditions are saved.
 - Classification metrics and detection metrics are saved.
 - Summary CSV tables and plots are generated for the report.
+- The full result contract and reproducibility manifest validate successfully.

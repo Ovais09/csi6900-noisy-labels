@@ -72,7 +72,7 @@ Generated tables to use:
 
 Report:
 
-- Datasets: Breast Cancer, Wine, Digits.
+- Datasets: Breast Cancer, Wine, Digits, and UCI Dry Bean.
 - Models: logistic regression, random forest, histogram gradient boosting.
 - Noise types: symmetric and class-dependent.
 - Noise rates: 10%, 20%, 30%, 40%.
@@ -84,6 +84,7 @@ Generated results:
 
 - `results/tables/main_experiment_results.csv`
 - `results/tables/summary_results.csv`
+- `results/logs/run_manifest.json`
 
 ## 5. Results and Analysis
 
@@ -102,6 +103,15 @@ Useful figures:
 - Macro F1 vs noise rate.
 - Detection F1 vs noise rate.
 
+Statistical evidence:
+
+- Use `results/tables/analysis/paired_cleaning_comparisons.csv` for paired
+  cleaning-vs-noisy gains, bootstrap 95% confidence intervals, win rates, and
+  Holm-adjusted Wilcoxon p-values.
+- Explain that the four seeds are averaged within each dataset/noise/rate/model
+  setting before inferential comparisons, rather than treated as independent
+  settings.
+
 ## 6. Conclusion
 
 Summarize:
@@ -109,7 +119,8 @@ Summarize:
 - Main empirical findings.
 - Whether lightweight cleaning improved robustness.
 - Which models/noise types were easiest or hardest.
-- Limitations: small datasets, synthetic corruption, no hyperparameter tuning.
+- Limitations: mostly synthetic corruption, known-noise-rate selection,
+  cyclic class-dependent transitions, and no hyperparameter tuning.
 - Future work: larger OpenML datasets, real noisy labels, stronger tabular
   models, adaptive threshold selection.
 
