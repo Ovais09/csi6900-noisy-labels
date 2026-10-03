@@ -56,6 +56,11 @@ docker build \
 
 The revision build argument lets manifests created inside the image identify
 the exact source commit even though `.git` is excluded from the build context.
+The multi-architecture base image is pinned by digest. `requirements-docker.lock`
+pins the resolved Python 3.11 container dependencies, including Jupyter's
+dependencies. Local Python 3.9 installations use `requirements.txt` instead.
+Native numerical threads are bounded to avoid oversubscription; random forests
+can still use the CPUs assigned to the container.
 
 If you see `failed to connect to the docker API at unix:///var/run/docker.sock`,
 the Docker CLI is installed but no Docker backend is running. Fix it with one of:
