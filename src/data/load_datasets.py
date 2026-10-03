@@ -1,5 +1,7 @@
 """Dataset loaders for the noisy-label benchmark."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import pandas as pd
@@ -17,6 +19,7 @@ class DatasetBundle:
     y: pd.Series
     task_type: str
     n_classes: int
+    source_samples: int | None = None
 
 
 def _bundle_from_sklearn(name: str, loader, task_type: str) -> DatasetBundle:

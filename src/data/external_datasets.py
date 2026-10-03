@@ -20,7 +20,7 @@ DRY_BEAN_URL = (
 DRY_BEAN_RAW_DIR = Path("datasets/raw/dry_bean")
 DRY_BEAN_ZIP_PATH = DRY_BEAN_RAW_DIR / "DryBeanDataset.zip"
 DRY_BEAN_ARFF_MEMBER = "DryBeanDataset/Dry_Bean_Dataset.arff"
-DRY_BEAN_PROCESSED_PATH = Path("datasets/processed/dry_bean.csv")
+DRY_BEAN_PROCESSED_PATH = Path("datasets/processed/dry_bean_source.csv")
 DRY_BEAN_LABEL_MAPPING_PATH = Path("datasets/processed/dry_bean_label_mapping.csv")
 
 
@@ -192,6 +192,16 @@ def load_dry_bean(auto_prepare: bool = True) -> DatasetBundle:
 
     df = load_dataframe(DRY_BEAN_PROCESSED_PATH)
     X, y = _validated_dry_bean_parts(df)
+    source_samples = len(y)
+    # Identical observations must not leak across either holdout or OOF folds.
+    duplicate_features = X.duplicated(keep=False)
+    if duplicate_features.any():
+        groups = df.loc[duplicate_features].groupby(list(X.columns), dropna=False)
+        if groups["target"].nunique().gt(1).any():
+            raise ValueError("Dry Bean has identical features with conflicting labels")
+    keep = ~X.duplicated(keep="first")
+    X = X.loc[keep].reset_index(drop=True)
+    y = y.loc[keep].reset_index(drop=True)
 
     return DatasetBundle(
         name="dry_bean",
@@ -199,4 +209,5 @@ def load_dry_bean(auto_prepare: bool = True) -> DatasetBundle:
         y=y,
         task_type="multiclass",
         n_classes=int(y.nunique()),
+        source_samples=source_samples,
     )

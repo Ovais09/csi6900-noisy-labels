@@ -157,9 +157,12 @@ Export all supported datasets, including Dry Bean:
 python scripts/export_sklearn_datasets.py --include-external
 ```
 
-Dry Bean is downloaded from the UCI Machine Learning Repository and adds a
-larger real tabular benchmark with 13,611 samples, 16 numeric features, and 7
-classes.
+Dry Bean is downloaded from the UCI Machine Learning Repository: 13,611 source
+samples, 16 numeric features, and 7 classes. The benchmark removes 68 repeated
+feature rows before any split, leaving 13,543 observations. This prevents
+duplicate observations from crossing the holdout or cross-validation boundaries.
+The original parsed data remains in `datasets/processed/dry_bean_source.csv`;
+the exported benchmark is `datasets/processed/dry_bean.csv`.
 
 Run tests:
 
@@ -282,6 +285,13 @@ seeds as independent experimental settings.
 datasets, and result CSV together with package versions, Python/platform
 details, and the Git revision. Use this file to identify exactly what produced
 a result set.
+
+Training writes a `*.csv.training.json` sidecar at every completed combination.
+Resume verifies the result checksum, training source files, dataset contents,
+configuration (including CV folds), Python version, platform, and dependencies.
+Changed or untracked checkpoints must be retrained. Regenerating derived outputs
+preserves the original training provenance instead of attributing old results to
+the current reporting environment.
 
 `scripts/make_model_diagnostics.py` retrains one selected setting and saves
 confusion matrices, ROC curves, precision-recall curves, macro-F1 summaries,

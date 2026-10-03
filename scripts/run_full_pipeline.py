@@ -10,6 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils.config import load_experiment_config, quick_experiment_config
+from src.utils.training import verify_training_record
 
 EXTERNAL_DATASETS = {"dry_bean"}
 
@@ -278,6 +279,15 @@ def parse_args():
 def main():
     args = parse_args()
     commands = build_pipeline_commands(args)
+    if args.skip_training and not args.dry_run:
+        config = load_experiment_config(args.config)
+        if args.quick:
+            config = quick_experiment_config(config)
+        results_path = args.results or (
+            "results/tables/quick_pipeline_results.csv"
+            if args.quick else config["output"]["results_csv"]
+        )
+        verify_training_record(config, results_path, PROJECT_ROOT)
 
     for command in commands:
         printable = " ".join(command)

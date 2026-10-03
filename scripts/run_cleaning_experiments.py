@@ -16,6 +16,7 @@ from src.evaluation.result_contract import COMBO_COLUMNS, combo_key, complete_co
 from src.utils.config import load_experiment_config, quick_experiment_config
 from src.utils.io import load_dataframe, save_dataframe, save_dataframe_atomic
 from src.utils.seeds import set_global_seed
+from src.utils.training import checkpoint_training, start_training_record
 
 
 def _quick_config(config):
@@ -144,6 +145,10 @@ def main():
     )
     expected_keys = {_combo_key(*combination) for combination in combinations}
 
+    training_record = start_training_record(
+        config, output_path, PROJECT_ROOT, resume=args.resume
+    )
+
     completed_keys = (
         _prepare_resume_file(
             output_path,
@@ -154,6 +159,8 @@ def main():
         else set()
     )
     replace_existing = not args.resume
+    if args.resume and output_file.exists():
+        training_record = checkpoint_training(training_record, output_path)
 
     for dataset, noise_type, noise_rate, model, seed in combinations:
         current_key = _combo_key(dataset, noise_type, noise_rate, model, seed)
@@ -189,6 +196,7 @@ def main():
             detector_methods=detector_methods,
         )
         _append_results(result, output_path, replace=replace_existing)
+        training_record = checkpoint_training(training_record, output_path)
         replace_existing = False
 
     if not output_file.exists():
@@ -196,6 +204,9 @@ def main():
         saved_path = save_dataframe(empty_results, output_path)
     else:
         saved_path = output_file
+    if _completed_keys(output_path, detector_methods) != expected_keys:
+        raise ValueError("Training did not produce the exact requested experiment matrix")
+    checkpoint_training(training_record, output_path, complete=True)
     print(f"Saved results to {saved_path}")
 
 

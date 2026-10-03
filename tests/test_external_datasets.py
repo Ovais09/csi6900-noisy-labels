@@ -127,3 +127,28 @@ def test_load_dry_bean_rejects_invalid_cached_targets(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="integer class IDs"):
         load_dry_bean(auto_prepare=False)
+
+
+def test_dry_bean_deduplicates_before_splitting_and_keeps_source_cache(tmp_path, monkeypatch):
+    path = tmp_path / "source.csv"
+    source = pd.DataFrame({"Area": [1., 1., 2., 3.], "target": [0, 0, 1, 1]})
+    source.to_csv(path, index=False)
+    monkeypatch.setattr("src.data.external_datasets.DRY_BEAN_PROCESSED_PATH", path)
+
+    dataset = load_dry_bean(auto_prepare=False)
+
+    assert dataset.source_samples == 4
+    assert len(dataset.y) == 3
+    assert not dataset.X.duplicated().any()
+    assert dataset.X.index.equals(dataset.y.index)
+    assert dataset.X.index.equals(pd.RangeIndex(3))
+    pd.testing.assert_frame_equal(pd.read_csv(path), source)
+
+
+def test_dry_bean_rejects_conflicting_duplicate_labels(tmp_path, monkeypatch):
+    path = tmp_path / "source.csv"
+    pd.DataFrame({"Area": [1., 1., 2.], "target": [0, 1, 1]}).to_csv(path, index=False)
+    monkeypatch.setattr("src.data.external_datasets.DRY_BEAN_PROCESSED_PATH", path)
+
+    with pytest.raises(ValueError, match="conflicting labels"):
+        load_dry_bean(auto_prepare=False)

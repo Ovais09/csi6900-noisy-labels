@@ -103,6 +103,8 @@ def git_state(project_root) -> dict:
 def build_run_manifest(config, config_path, results_path, project_root) -> dict:
     """Build a complete provenance record for a finished result CSV."""
 
+    from src.utils.training import verify_training_record
+
     config_path = Path(config_path)
     results_path = Path(results_path)
     results = load_dataframe(results_path)
@@ -111,6 +113,7 @@ def build_run_manifest(config, config_path, results_path, project_root) -> dict:
         "schema_version": 1,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "git": git_state(project_root),
+        "training": verify_training_record(config, results_path, project_root),
         "runtime": {
             "python": sys.version.split()[0],
             "implementation": platform.python_implementation(),

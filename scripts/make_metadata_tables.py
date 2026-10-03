@@ -59,7 +59,7 @@ DETECTOR_ROWS = [
 CLEANING_ROWS = [
     {
         "condition": "clean_upper_bound",
-        "description": "Train on clean labels for a best-case reference.",
+        "description": "Train on original reference labels; not a mathematical upper bound.",
     },
     {
         "condition": "noisy_baseline",
@@ -85,6 +85,8 @@ def dataset_table(dataset_names):
             {
                 "dataset": dataset.name,
                 "samples": len(dataset.y),
+                "source_samples": dataset.source_samples or len(dataset.y),
+                "duplicates_removed": (dataset.source_samples or len(dataset.y)) - len(dataset.y),
                 "features": dataset.X.shape[1],
                 "classes": dataset.n_classes,
                 "task_type": dataset.task_type,

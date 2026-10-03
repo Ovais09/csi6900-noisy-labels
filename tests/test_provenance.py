@@ -2,6 +2,7 @@ import hashlib
 import json
 
 import pandas as pd
+import pytest
 import yaml
 
 from src.utils.config import validate_experiment_config
@@ -12,6 +13,11 @@ from src.utils.provenance import (
     dataset_fingerprint,
     git_state,
     sha256_file,
+)
+from src.utils.training import (
+    checkpoint_training,
+    start_training_record,
+    verify_training_record,
 )
 
 
@@ -58,6 +64,7 @@ def test_dataset_fingerprint_contains_dimensions_and_content_hash():
 
 def test_build_and_save_run_manifest(tmp_path, monkeypatch):
     monkeypatch.delenv("CSI6900_GIT_COMMIT", raising=False)
+    monkeypatch.setattr("src.utils.training.training_source_hashes", lambda _: {"model.py": "abc"})
     results_path = tmp_path / "results.csv"
     pd.DataFrame({"accuracy": [0.9], "condition": ["clean"]}).to_csv(
         results_path,
@@ -66,6 +73,8 @@ def test_build_and_save_run_manifest(tmp_path, monkeypatch):
     config_path = tmp_path / "config.yaml"
     config = _config(results_path, tmp_path / "summary.csv")
     config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    training = start_training_record(config, results_path, tmp_path)
+    checkpoint_training(training, results_path, complete=True)
 
     manifest = build_run_manifest(
         config=config,
@@ -83,6 +92,7 @@ def test_build_and_save_run_manifest(tmp_path, monkeypatch):
     assert saved["datasets"][0]["name"] == "wine"
     assert saved["runtime"]["dependencies"]["scikit-learn"]
     assert saved["git"] == {"commit": None, "dirty": None}
+    assert saved["training"]["results"]["sha256"] == sha256_file(results_path)
 
 
 def test_git_state_uses_container_build_revision_without_git(tmp_path, monkeypatch):
@@ -90,3 +100,50 @@ def test_git_state_uses_container_build_revision_without_git(tmp_path, monkeypat
     monkeypatch.setenv("CSI6900_GIT_COMMIT", revision)
 
     assert git_state(tmp_path) == {"commit": revision, "dirty": None}
+
+
+@pytest.fixture
+def checkpoint(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.utils.training.training_source_hashes", lambda _: {"model.py": "abc"})
+    results_path = tmp_path / "results.csv"
+    pd.DataFrame({"accuracy": [0.9]}).to_csv(results_path, index=False)
+    config = _config(results_path, tmp_path / "summary.csv")
+    record = start_training_record(config, results_path, tmp_path)
+    checkpoint_training(record, results_path, complete=True)
+    return config, results_path, tmp_path
+
+
+def test_resume_verifies_the_original_training_inputs(checkpoint):
+    config, results, root = checkpoint
+    original = verify_training_record(config, results, root)
+    resumed = start_training_record(config, results, root, resume=True)
+    assert resumed == original
+
+
+@pytest.mark.parametrize("change", ["cv", "source", "data", "runtime", "csv"])
+def test_resume_rejects_incompatible_or_modified_results(checkpoint, monkeypatch, change):
+    config, results, root = checkpoint
+    if change == "cv":
+        config["cv_folds"] = 5
+    elif change == "source":
+        monkeypatch.setattr("src.utils.training.training_source_hashes", lambda _: {"model.py": "changed"})
+    elif change == "data":
+        monkeypatch.setattr("src.utils.training.dataset_fingerprint", lambda _: {"changed": True})
+    elif change == "runtime":
+        monkeypatch.setattr("src.utils.training.training_runtime", lambda: {"python": "different"})
+    else:
+        results.write_text(results.read_text().replace("0.9", "0.8"))
+    with pytest.raises(ValueError, match="changed|differs"):
+        start_training_record(config, results, root, resume=True)
+
+
+def test_untracked_or_incomplete_results_cannot_be_published(checkpoint):
+    config, results, root = checkpoint
+    record = verify_training_record(config, results, root)
+    checkpoint_training(record, results, complete=False)
+    with pytest.raises(ValueError, match="not completed"):
+        verify_training_record(config, results, root)
+    from src.utils.training import training_manifest_path
+    training_manifest_path(results).unlink()
+    with pytest.raises(ValueError, match="Missing training provenance"):
+        start_training_record(config, results, root, resume=True)
