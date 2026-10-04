@@ -1,0 +1,170 @@
+\chapter{Experimental Setup}
+\section{Datasets and Preprocessing}
+Table~\ref{tab:datasets} gives the exact benchmark dimensions and partition
+sizes. Breast Cancer Wisconsin (Diagnostic) contains image-derived nuclear
+measurements for binary diagnosis~\cite{uciCancer}. Wine contains chemical
+measurements associated with three wine classes~\cite{uciWine}. Digits is
+scikit-learn's 1,797-row dataset of $8\times8$ digit images, flattened to 64
+features~\cite{sklearnDigits}. It is a useful multiclass numeric benchmark,
+but not a conventional business table. It is a subset of Alpaydin and Kaynak's
+5,620-row UCI optical-digit dataset~\cite{uciDigits}; this study re-splits the
+subset rather than reproducing the original writer-separated split.
+Dry Bean contains 16 measured
+shape-related features and seven classes~\cite{uciBean}.
+
+\reporttable{datasets}{Dataset dimensions and exact split sizes.}{tab:datasets}
+{All features are numeric. $N$ is the post-deduplication sample count; $p$ is
+the number of features and $C$ the number of classes. Split rounding accounts
+for deviations from exact 60/20/20 proportions.}
+
+The first three datasets are loaded through scikit-learn. Dry Bean is
+downloaded from UCI and its ARFF representation is parsed with a structured
+reader. The original 13,611-row source is retained. Before splitting, 68
+duplicate feature rows are removed, leaving 13,543 examples. Repeated feature
+vectors with conflicting labels are rejected rather than silently assigned
+a label. This prevents exact duplicate examples from appearing on both sides
+of the holdout boundary. The release audit checks disjoint row identities and
+feature signatures across all 16 dataset--seed splits.
+
+No missing-value imputation, feature selection, resampling, or categorical
+encoding is needed for these data. Labels are encoded as integer class IDs.
+For Dry Bean the saved map is 0: BARBUNYA, 1: BOMBAY, 2: CALI, 3: DERMASON,
+4: HOROZ, 5: SEKER, and 6: SIRA. No classification results are claimed for
+Adult Income or other unimplemented datasets.
+
+\section{Models and Fixed Parameters}
+All estimators use scikit-learn 1.6.1~\cite{pedregosa2011}. The three model
+families span a linear classifier, bagged trees, and boosted trees. The
+random-forest inclusion is motivated by the established ensemble
+construction described by Breiman~\cite{breiman2001}. Hyperparameters are
+fixed rather than chosen separately for each noise condition.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Estimator settings. Unlisted settings retain scikit-learn 1.6.1 defaults.}
+\label{tab:parameters}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.23\linewidth}>{\raggedright\arraybackslash}p{0.69\linewidth}}
+\toprule
+Model & Settings \\
+\midrule
+Logistic regression (LR) & StandardScaler; L2 penalty; $C=1$; liblinear;
+one-vs-rest for multiclass; intercept enabled; maximum 2,000 iterations;
+tolerance $10^{-4}$; no class weighting. \\
+Random forest (RF) & 200 trees; Gini criterion; bootstrap sampling;
+$\sqrt p$ features per split; unrestricted depth; minimum split size 2;
+minimum leaf size 1; no class weighting; all available jobs. \\
+Histogram gradient boosting (HGB) & Log-loss; learning rate 0.1; maximum
+100 iterations; 31 maximum leaf nodes; minimum leaf size 20; 255 maximum bins;
+L2 regularization 0; early stopping set to auto. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The solver behavior and estimator defaults are documented in the versioned
+APIs~\cite{sklearnLR,sklearnRF,sklearnHGB}. For HGB, automatic early stopping
+requires more than 10,000 fitting rows. The largest training partition here
+has 8,125 rows, so this condition is never met. The reserved validation set
+is not passed to the estimator. Every fitted clone receives the experiment
+seed; cross-validation uses one job to avoid multiplying the forest's own
+parallel workers. Docker sets the OpenMP limit to four and the OpenBLAS and
+MKL thread limits to one.
+
+\section{Matrix and Paired Conditions}
+The experimental grid is
+\begin{equation}
+4\ \text{datasets}\times3\ \text{models}\times2\ \text{noise types}
+\times4\ \text{rates}\times4\ \text{seeds}=384.
+\end{equation}
+Rates are 10\%, 20\%, 30\%, and 40\%; seeds are 42, 123, 999, and 2026.
+Each combination produces two reference rows plus two cleaning actions for
+each of four detectors: $384(2+2\cdot4)=3,840$ rows. Clean references recur
+across noise conditions for convenience. Those repeated values are not
+independent experiments. Likewise, removal and relabeling share a detector's
+mask; their detection scores are counted once per combination and detector.
+
+Identical model--dataset--noise--rate--seed keys are used when comparing a
+cleaned model with its noisy reference. Comparisons between the combined
+score and its component scorers also hold the cleaning action fixed. The
+benchmark is balanced, so simple grand means give equal weight to each
+dataset, model, noise type, rate, and seed. Large datasets do not dominate
+the aggregate solely because they contain more rows.
+
+\section{Evaluation Metrics}
+\subsection{Downstream Classification}
+Accuracy is the proportion of correct test predictions. Macro F1 computes
+$F_{1,c}=2P_cR_c/(P_c+R_c)$ for each class and averages over the classes,
+so minority classes do not disappear into a sample-weighted mean. A zero
+denominator is assigned zero. AUROC uses the probability of the positive
+class for binary classification. For multiclass classification, it averages
+one-vs-rest class AUROCs with equal class weight. The same untouched test
+partition is used for every condition in a dataset--seed pair.
+
+\subsection{Injected-Error Detection}
+Let $S$ be the selected set and $Z$ the known set of injected corruptions.
+Detection precision is $|S\cap Z|/|S|$, recall is $|S\cap Z|/|Z|$, and F1 is
+their harmonic mean. These are not test-set classification metrics and do
+not establish which original annotations were incorrect. Undefined ratios
+are assigned zero by the implementation. The canonical positive-noise grid
+contains nonempty selection and corruption sets.
+
+\subsection{Diagnostic Curves}
+Saved-model diagnostics supplement the matrix with confusion matrices,
+per-class classification reports, ROC curves, and precision--recall (PR)
+curves. Multiclass diagnostic curves flatten one-hot targets and predicted
+probabilities to produce \emph{micro-averaged} curves. Their ROC area is
+therefore not the main table's macro one-vs-rest AUROC. PR area is computed
+by trapezoidal integration, not by average precision. These choices are
+named explicitly wherever the curves or areas appear.
+
+\section{Aggregation and Inference}
+For method $a$, dataset $d$, setting $s$, and seed $r$, define its paired
+gain over noisy training as
+\begin{equation}
+ \delta_{dsr}^{(a)}=M_{dsr}^{(a)}-M_{dsr}^{(\mathrm{noisy})}.
+\end{equation}
+The study first averages the four seeds within a setting, then the 24
+settings within a dataset, and finally the four dataset means:
+\begin{equation}
+ g_d^{(a)}=\frac1{24}\sum_{s=1}^{24}\frac1{4}\sum_{r=1}^{4}\delta_{dsr}^{(a)},
+ \qquad \overline g^{(a)}=\frac1{4}\sum_{d=1}^{4}g_d^{(a)}.
+\end{equation}
+The dataset-level unit follows the comparative-evaluation motivation in
+Dem{\v{s}}ar~\cite{demsar2006}; it does not make the four convenience datasets
+a random sample of all tabular tasks.
+
+The exact paired sign-flip test enumerates $2^4=16$ sign assignments to the
+four gains and uses the mean as its statistic. It is implemented through
+SciPy's one-sample paired-permutation interface~\cite{scipyPermutation}.
+Its interpretation requires exchangeability of paired method assignments,
+or a corresponding sign-symmetry null for dataset effects. This is an
+exploratory assumption, not a property guaranteed by the dataset selection.
+The smallest attainable two-sided $p$-value with four nonzero gains is
+$2/16=0.125$. Statistical significance at 0.05 is therefore unattainable
+in this design, even before multiplicity adjustment.
+
+Holm's sequential correction is applied within each scope and
+metric~\cite{holm1979}: eight cleaning-versus-noisy comparisons form one
+family, and six combined-versus-component comparisons form another.
+These are not a single adjustment across every metric and family. Exploratory
+95\% percentile bootstrap intervals use 5,000 resamples of the four dataset
+means with random seed 2026. They have limited reliability with four datasets
+and must not override the exact-test resolution. Per-dataset intervals and
+$p$-values are left undefined. Win/tie/loss percentages use 96 seed-averaged
+settings, a $10^{-12}$ tie tolerance, and remain descriptive.
+
+\section{Execution and Verification}
+The canonical matrix was trained under Docker on Linux ARM64 with CPython
+3.11.17. The pinned analysis stack includes NumPy 1.26.4, pandas 2.3.3,
+scikit-learn 1.6.1, SciPy 1.13.1, and Matplotlib 3.9.4. Native macOS testing
+also exercised the Python 3.9 environment. The original training revision is
+distinct from the later audit and reporting revisions.
+
+At the frozen code/results revision, 133 automated tests passed in both
+environments, with 88\% branch-aware core coverage on the host. The release
+audit checked 25 result-contract rules, split isolation, corruption counts,
+table recomputation, saved-model metric reproduction, image presence, and
+181 artifact hashes. A fresh extraction and container build passed the same
+audit offline. Additionally, all 24 dataset--model--noise combinations at
+40\% noise and seed 999 were rerun; their 240 result rows matched the saved
+matrix to numerical tolerance $10^{-12}$. These checks reduce implementation
+risk; they do not prove the scientific assumptions or guarantee bug-free code.

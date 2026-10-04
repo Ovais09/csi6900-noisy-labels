@@ -1,0 +1,83 @@
+{
+  "source_revision": "50f8995a014f4d68714cba7a4ea81e911c859374",
+  "result_rows": 3840,
+  "results_sha256": "2576804e3caadd3025ff95a9835729ced219fd38dce4ca30ee4a399727a61150",
+  "facts": {
+    "CleanAccuracy": "0.9586",
+    "NoisyAccuracy": "0.8535",
+    "ConfidenceRemoveGain": "4.27",
+    "CombinedRemoveGain": "3.68"
+  },
+  "inputs": [
+    {
+      "bytes": 14497,
+      "path": "results/figures/model_diagnostics/dry_bean_random_forest_symmetric_0p2_confidence/noisy_baseline_confusion_matrix.pdf",
+      "sha256": "5385136da6b811a89f782e7b89304d692f743508176c34d76c912a8446eeed1e"
+    },
+    {
+      "bytes": 15088,
+      "path": "results/figures/model_diagnostics/dry_bean_random_forest_symmetric_0p2_confidence/noisy_baseline_precision_recall_curve.pdf",
+      "sha256": "c16788f2df80654fc4b2b1f88852559e803dca79393ce04e6377a91761620a3e"
+    },
+    {
+      "bytes": 14642,
+      "path": "results/figures/model_diagnostics/dry_bean_random_forest_symmetric_0p2_confidence/noisy_baseline_roc_curve.pdf",
+      "sha256": "0122ecda50a0545ada17bea0078b928a6a574e624d1014284d50f3bc4d093b6c"
+    },
+    {
+      "bytes": 12501,
+      "path": "results/tables/analysis/best_cleaning_by_setting.csv",
+      "sha256": "848657a78fc99bfa88327327a7762b1174689a658225a1a716303a33af1a7b5f"
+    },
+    {
+      "bytes": 1125,
+      "path": "results/tables/analysis/cleaning_gain_summary.csv",
+      "sha256": "90437fed11aad58dd37f2fc29710d968a5a4dbeb03f88e52477f6e50c2d8f7a3"
+    },
+    {
+      "bytes": 18293,
+      "path": "results/tables/analysis/combined_detector_comparisons.csv",
+      "sha256": "733dc8cddf5f8f9eb037340c8339fa48d5670737ab99b7cfa72abc862f0fa33d"
+    },
+    {
+      "bytes": 6356,
+      "path": "results/tables/analysis/condition_summary.csv",
+      "sha256": "889dd575943411f741cf88c86f97db8d32beaf44f4a625744ce490e31ea5c190"
+    },
+    {
+      "bytes": 4972,
+      "path": "results/tables/analysis/detector_breakdown.csv",
+      "sha256": "f24cdb443257c06f5f78ae85a434c4e4cd4b63038d47f45522cfe07f0f7ac274"
+    },
+    {
+      "bytes": 571,
+      "path": "results/tables/analysis/detector_ranking.csv",
+      "sha256": "64d4d3248900dcee7e21546448a40852de650745b7e48d731cebef608d100db9"
+    },
+    {
+      "bytes": 12093,
+      "path": "results/tables/analysis/noise_impact_summary.csv",
+      "sha256": "431f531fc1aa6596a4ad05f04270c2a026976378345d2195ecef977e9aa79e70"
+    },
+    {
+      "bytes": 25120,
+      "path": "results/tables/analysis/paired_cleaning_comparisons.csv",
+      "sha256": "1f51e291772d53a005c33536ccb3deed5a9140c2bedf10298e19aaf902300724"
+    },
+    {
+      "bytes": 220,
+      "path": "results/tables/dataset_overview.csv",
+      "sha256": "bc995db3dad581c3e717d4ea8f35507fcc71c4a44ae901456254a6780ecfdd4d"
+    },
+    {
+      "bytes": 732614,
+      "path": "results/tables/main_experiment_results.csv",
+      "sha256": "2576804e3caadd3025ff95a9835729ced219fd38dce4ca30ee4a399727a61150"
+    },
+    {
+      "bytes": 1085,
+      "path": "results/tables/model_diagnostics/dry_bean_random_forest_symmetric_0p2_confidence/diagnostic_summary.csv",
+      "sha256": "c03d981b5bde1a8e9d85725291208174d7a59da69e1ac2f2c1179ac1c23a8524"
+    }
+  ]
+}

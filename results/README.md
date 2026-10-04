@@ -4,6 +4,10 @@ Everything below `results/tables`, `results/figures`, `results/logs`, and
 `results/models` is generated and intentionally ignored by Git. The `.gitkeep`
 files preserve the directory structure in a clean clone.
 
+The selected immutable release is additionally tracked with Git LFS at
+`releases/code-results-50f8995.tar.gz`. A successful LFS push backs up that
+snapshot, not every scratch file in these directories. See `releases/README.md`.
+
 ## Core Outputs
 
 - `tables/main_experiment_results.csv`: one row per condition and detector for

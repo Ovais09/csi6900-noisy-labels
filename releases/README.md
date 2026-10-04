@@ -44,8 +44,18 @@ Git-LFS-enabled clone or `git lfs pull`.
 Original datasets retain their source terms; this archive does not relicense
 third-party data. Dry Bean (M. Koklu and I. A. Ozkan) is distributed by UCI under
 CC BY 4.0: https://doi.org/10.24432/C50S4B. Its original archive is preserved;
-the benchmark removes 68 duplicate feature rows. Breast Cancer Wisconsin
-(Diagnostic) and Wine are distributed through scikit-learn from UCI, and
-Digits is scikit-learn's 1,797-row optical-digit subset. Source citations and
-the transformations used appear in `report/references.bib` and the report.
+the benchmark removes 68 duplicate feature rows. The other UCI datasets are
+also listed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/):
+
+- Breast Cancer Wisconsin (Diagnostic): William Wolberg, Olvi Mangasarian,
+  Nick Street, and W. Street, as credited by UCI, https://doi.org/10.24432/C5DW2B.
+- Wine: Stefan Aeberhard and M. Forina, https://doi.org/10.24432/C5PC7J.
+- Optical Recognition of Handwritten Digits: E. Alpaydin and C. Kaynak,
+  https://doi.org/10.24432/C50P49. This project uses scikit-learn's 1,797-row
+  subset, not the full 5,620-row UCI dataset or its original split.
+
+These three datasets are exported from scikit-learn as CSV with numeric targets.
+Training-only synthetic label changes and new random splits are described in
+the report; original source labels are retained in the exports. Source citations
+and the transformations used appear in `report/references.bib` and the report.
 Never load an untrusted joblib file: model deserialization can execute code.

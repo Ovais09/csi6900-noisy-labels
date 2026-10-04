@@ -1,0 +1,75 @@
+\chapter{Introduction}
+\section{Motivation}
+Supervised classification learns relationships between observations and their
+labels. A label is often treated as a reliable target even when it was produced
+through an imperfect annotation process. Ambiguous definitions, transcription
+mistakes, incomplete evidence, and disagreement between annotators can create
+incorrect targets. The survey by Fr\'{e}nay and Verleysen distinguishes label
+noise from other data defects and reviews its consequences for classification
+and the methods used to address it~\cite{frenay2014}.
+
+This project focuses on numeric tabular representations. Such representations
+include measured chemical properties, image-derived morphology, and flattened
+pixel intensities. They share a matrix interface, but their class structure
+and difficulty differ. A method that works on one should not be assumed to
+work on all. Nazaretyan, Leser, and Kircher's tabular benchmark reports that
+no evaluated label-error identification method dominates all studied
+settings~\cite{nazaretyan2025}. The practical question is therefore not merely
+whether a method can flag unusual observations, but whether its flags are
+useful for improving a particular downstream learner.
+
+Two tasks must be separated. \emph{Detection} identifies training rows whose
+observed labels are suspect. \emph{Intervention} removes or changes those
+labels and then retrains a classifier. A high detection score does not
+guarantee that intervention improves classification. Removal can discard
+informative boundary examples, and relabeling can reinforce an incorrect
+prediction. This distinction motivates evaluating both tasks against separate
+targets: known injected corruptions for detection, and an untouched test set
+for downstream prediction.
+
+\section{Research Questions}
+The study addresses three questions from the project proposal:
+\begin{enumerate}
+\item \textbf{RQ1:} How does controlled training-label noise affect common
+tabular classifiers across datasets, corruption mechanisms, and noise rates?
+\item \textbf{RQ2:} How accurately do lightweight out-of-fold confidence,
+disagreement, margin, and combined scores identify the injected errors?
+\item \textbf{RQ3:} Does removing or relabeling the selected examples improve
+test accuracy, macro F1, and AUROC relative to training on noisy labels?
+\end{enumerate}
+The combined score is a specific hypothesis: assigning weights to several
+signals might produce a better ordering of suspicious examples than any
+component alone. It is evaluated against its individual components under an
+identical selection budget. Its implementation is not, by itself, evidence
+of novelty or superiority.
+
+\section{Contributions and Scope}
+The principal contribution is a reproducible controlled benchmark connecting
+label-error detection to downstream classification. It includes four datasets,
+three model families, two corruption mechanisms, four corruption rates, four
+random seeds, four detectors, and two cleaning actions. The study also provides
+a direct component comparison, an analytical explanation of the combined
+score's binary behavior, and an engineering release with original training
+provenance, fitted-model examples, generated figures, and checksum verification.
+
+The empirical contribution includes a negative result: the weighted combination
+does not improve average performance over confidence alone. Reporting that
+outcome is essential to answering the proposed research question. The results
+support a limited practical conclusion about simple filtering under the
+conditions tested, not a claim that the score is a new state-of-the-art method.
+
+The scope is deliberately controlled. Only training labels are corrupted;
+features are unchanged. The original dataset labels serve as reference labels,
+not independently certified ground truth. Selection uses the known injected
+noise fraction. No categorical-data pipeline, unknown-noise estimation,
+instance-dependent corruption, hyperparameter search, or neural model is
+evaluated. These limits delimit the conclusions rather than being hidden
+implementation details.
+
+\section{Organization}
+Chapter~2 situates the work within noisy-label learning and tabular evaluation.
+Chapter~3 defines the corruption, detection, and cleaning procedures.
+Chapter~4 specifies datasets, estimators, metrics, and statistical aggregation.
+Chapter~5 analyzes the results and failure cases. Chapter~6 concludes and
+identifies follow-up experiments. The appendix documents reproducibility and
+provides illustrative diagnostic curves.

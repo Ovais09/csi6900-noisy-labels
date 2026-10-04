@@ -1,0 +1,82 @@
+\chapter{Related Work}
+\section{Noise Models and Robust Learning}
+Fr\'{e}nay and Verleysen organize label-noise research around the assumptions
+that connect the observed and true labels~\cite{frenay2014}. That distinction
+matters because a uniform random flip is not equivalent to systematic
+confusion between particular classes or feature-dependent annotation errors.
+The present benchmark implements only uniform alternative-label flips and
+fixed cyclic transitions. Its controlled corruption mask makes detection
+measurable, but does not make either mechanism a realistic model of all
+annotation processes.
+
+Li and Zhu review deep-learning approaches to noisy-label image
+classification and examine noise patterns informed by real-world
+data~\cite{li2024}. The current work occupies the narrower
+sample-selection and label-replacement part of this landscape. It does not
+adapt the training loss or architecture. This restriction allows the same
+cleaning interface to be used with linear, bagged-tree, and boosted-tree
+estimators, but leaves stronger robust-training approaches outside the
+experimental comparison.
+
+\section{Evidence Specific to Tabular Data}
+Nazaretyan et al. survey 34 approaches and benchmark 20 methods for identifying
+mislabeled tabular samples~\cite{nazaretyan2025}. Their evaluation includes
+controlled corruption and a genomic dataset with known errors. The breadth of
+that study is greater than the present project. This project's role is a
+small, auditable comparison of inexpensive probability-based scores and the
+consequences of acting on their rankings. Its detection values should not be
+compared directly with theirs: datasets, noise processes, selection budgets,
+and learners are different.
+
+Yang et al. investigate whether noisy-label methods associated with computer
+vision can help deep learning on electronic health records, and report
+beneficial adaptations in their evaluated settings~\cite{yang2024}. Their
+work motivates testing rather than assuming transfer across domains. This
+project uses neither their EHR data nor their deep networks; its clinical
+dataset is a small image-derived diagnostic table. It therefore cannot
+validate clinical deployment or reproduce their domain-specific findings.
+
+Eisenb{\"u}rger et al. study label noise in gradient-boosted decision trees,
+including detection, relabeling, and early stopping~\cite{eisenburger2025}.
+They motivate including a boosted-tree learner, but this benchmark uses
+scikit-learn's histogram gradient boosting rather than implementing their
+Gradients detector. No claim of equivalence to their method or their reported
+performance is made. Their preprint's version history starts in September
+2024; the January 2025 version is the one cited here.
+
+\section{Confidence Is Not Confident Learning}
+Northcutt, Jiang, and Chuang's confident learning estimates the relationship
+between observed and latent labels using probabilistic thresholds and a
+class-conditional noise model~\cite{northcutt2021}. It combines ranking with
+noise-distribution estimation. In contrast, this project's confidence score
+is simply one minus the out-of-fold probability of the observed label.
+Its cleaning budget is supplied from the experimental noise rate. It does
+not estimate the confident joint, implement the cleanlab algorithm, or establish
+the theoretical guarantees of confident learning. Confident learning is an
+important omitted comparator for future work.
+
+\section{Ground Truth and Statistical Evidence}
+De Vries and Thierens identify a difficulty with synthetic-noise experiments:
+adding known corruptions to a real dataset does not establish that its original
+labels were clean~\cite{devries2025}. Their SYNLABEL framework constructs a
+ground-truth function and soft-label representations to make that distinction
+explicit. This project instead retains original public labels. Consequently,
+its detection metrics measure recovery of \emph{injected changes}, not discovery
+of every genuinely incorrect original annotation.
+
+Dem{\v{s}}ar emphasizes comparisons across datasets when evaluating learning
+algorithms~\cite{demsar2006}. This project adopts datasets as the aggregate
+inferential unit, not individual rows of its result matrix. It uses an exact
+paired sign-flip test rather than reproducing Dem{\v{s}}ar's recommended
+testing suite. The four datasets provide only limited inferential resolution;
+overlapping random splits and multiple conditions do not create hundreds of
+independent datasets.
+
+\section{Position of This Project}
+The distinguishing emphasis is traceability: each result can be connected to
+the split, corruption count, detector, cleaning action, seed, dependencies,
+and training revision that produced it. The comparison holds these elements
+fixed while changing the score or cleaning action. It is a focused empirical
+study, not a comprehensive competition against the literature. Its strongest
+supported conclusions concern relative behavior within this matrix and the
+failure of an intuitively appealing weighted score to beat a simpler baseline.

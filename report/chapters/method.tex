@@ -1,0 +1,153 @@
+\chapter{Proposed Approach}
+\section{Notation and Experimental Isolation}
+Let $D=\{(x_i,y_i)\}_{i=1}^{N}$ be a dataset with $C$ classes, represented by
+numeric feature vectors and reference labels. Stratified splitting produces
+training, validation, and test partitions in approximate proportions
+60\%, 20\%, and 20\%. The split seed is shared across all conditions belonging
+to a dataset--seed pair. The validation partition is reserved but not used
+for tuning or training in this study. Test labels are never corrupted or used
+to form cleaning scores.
+
+Within the training partition, corruption produces observed labels
+$\widetilde y_i$ and a Boolean mask $z_i=\mathbf{1}[\widetilde y_i\ne y_i]$.
+The detectors observe $(x_i,\widetilde y_i)$, not $y_i$ or $z_i$.
+Reference training labels are used only for the clean baseline, corruption
+construction, and detection evaluation. This separation prevents a detector
+from exploiting the answer it is supposed to recover.
+
+\section{Controlled Label Corruption}
+\subsection{Symmetric Noise}
+For a nominal corruption rate $\eta$ and $n$ training rows, sample
+$k=\operatorname{round}(\eta n)$ distinct indices without replacement. Replace
+each selected label with a uniformly chosen member of the other $C-1$ classes.
+Every selected label changes. In expectation, its transition probabilities
+are described by
+\begin{equation}
+ T_{ab}=\Pr(\widetilde y=b\mid y=a)=
+ \begin{cases}1-\eta,&a=b,\\ \eta/(C-1),&a\ne b.\end{cases}
+\end{equation}
+The implementation fixes the total number of changes rather than sampling
+independent Bernoulli flips. Finite-sample transition frequencies therefore
+need not equal this idealized matrix exactly.
+
+\subsection{Cyclic Class-Dependent Noise}
+For sorted class labels $c_0,\ldots,c_{C-1}$, define
+$g(c_j)=c_{(j+1)\bmod C}$. Select
+$k_j=\operatorname{round}(\eta n_j)$ rows from each original class and replace
+their labels using $g$. Class membership is computed before any labels are
+changed, so an example cannot be flipped twice as the class loop proceeds.
+The nominal transition matrix has diagonal mass $1-\eta$ and off-diagonal
+mass $\eta$ at $g(c_j)$.
+
+This model is class-dependent in the destination of a flip, not in a
+deliberately different error rate for each class. It is asymmetric for more
+than two classes, but binary cyclic and symmetric corruption both send a
+selected label to the only alternative class. Their binary implementations
+still differ in global versus per-class sample selection and rounding.
+The term ``cyclic'' is used to avoid implying a realistic annotator-confusion
+process. With per-class rounding, $\sum_j k_j$ can differ slightly from
+$\operatorname{round}(\eta n)$; exact counts are saved in the result matrix.
+
+\section{Training-Only Out-of-Fold Probabilities}
+For each noisy dataset and base classifier, use shuffled stratified five-fold
+cross-validation within the training partition. Each training row receives
+a probability vector from a model fitted without that row:
+\begin{equation}
+ p_i(c)=f^{(-v(i))}(x_i)_c,
+\end{equation}
+where $v(i)$ denotes its fold. The seed for fold shuffling is the experiment
+seed. If a class has fewer than five rows, the implementation reduces the
+fold count to the smallest class count; fewer than two rows raises an error.
+The canonical data support the requested five folds.
+
+Logistic regression's scaler is part of the fitted pipeline. Consequently,
+each fold estimates its own scaling parameters using only its fitting rows.
+The tree models use the numeric features without standardization. All four
+detectors share the same out-of-fold probability matrix, avoiding additional
+fitting variation or repeated cross-validation work. The same base model
+family supplies both the detector and the downstream classifier; this is not
+a cross-model transfer study.
+
+\section{Suspiciousness Scores}
+Define $\widehat y_i=\arg\max_c p_i(c)$, with the first sorted class chosen in
+an exact probability tie. Let $p_i^{(1)}$ and $p_i^{(2)}$ be the largest and
+second-largest predicted probabilities. Higher values of all four scores
+indicate greater suspicion:
+\begin{align}
+ s_i^{\mathrm{conf}} &= 1-p_i(\widetilde y_i),\\
+ s_i^{\mathrm{dis}} &= \mathbf{1}[\widehat y_i\ne\widetilde y_i],\\
+ s_i^{\mathrm{margin}} &= 1-(p_i^{(1)}-p_i^{(2)}),\\
+ s_i^{\mathrm{comb}} &= 0.5s_i^{\mathrm{conf}}+0.3s_i^{\mathrm{dis}}+0.2s_i^{\mathrm{margin}}.
+ \label{eq:combined}
+\end{align}
+All component scores lie in $[0,1]$. The nonnegative weights sum to one and
+were fixed in the project design; they were not optimized using the test
+results. Confidence conditions directly on the observed label. Disagreement
+discards probability magnitude and creates many ties. Margin measures general
+uncertainty without asking whether the observed label is the uncertain class.
+That difference is central to interpreting the results.
+
+\subsection{Why the Binary Combination Adds Little Ranking Information}
+For two classes, let $s=1-p_i(\widetilde y_i)$. Away from a probability tie,
+substitution into Eq.~\eqref{eq:combined} gives
+\begin{equation}
+ s^{\mathrm{comb}}=
+ \begin{cases}
+  0.9s,&s<0.5,\\
+  0.1s+0.7,&s>0.5.
+ \end{cases}
+ \label{eq:binary}
+\end{equation}
+Both branches increase with $s$, and the second branch is above the first.
+Thus the combined score preserves the confidence ordering except for the
+handling of exact ties. At $s=0.5$, the disagreement term can depend on which
+class wins the argmax tie. Matching binary performance is therefore expected
+and is not strong evidence that the combination contributes a new signal.
+For $C>2$, the top-two margin is not determined by the observed-label
+probability, so the ranking can change. The multiclass results are the more
+informative component comparison.
+
+\section{Selection and Cleaning}
+For every detector, select the $k=\operatorname{round}(\eta n)$ highest scores.
+Python's nearest-even rounding is used. Sorting is stable, ascending, and the
+last $k$ indices are selected. Exact ties at the cutoff therefore favor later
+rows in the current training-row order. That deterministic rule is especially
+consequential for the binary-valued disagreement score.
+
+The use of $\eta$ is an \emph{oracle selection budget}: the fraction of labels
+injected by the experiment is assumed known. The mask $z_i$ is not used for
+selection, but this budget assumption is more favorable than real deployment
+with an unknown noise level. For symmetric noise, the number of selected and
+corrupted rows is identical by construction. Detection precision and recall
+then coincide. Under cyclic corruption they may differ slightly because the
+number of injected errors is rounded separately within each class.
+
+\textbf{Removal} discards selected examples and fits a fresh classifier on
+the remaining noisy-labeled training set. \textbf{Relabeling} keeps every
+feature row and replaces selected labels by $\widehat y_i$, then fits a fresh
+classifier. A selected row already predicted as its observed label remains
+unchanged after relabeling. Relabeling uses one model family's out-of-fold
+predictions, not an ensemble consensus or a second round of label recovery.
+
+Two references complete the comparison: a fresh model trained on original
+training labels, and a fresh model trained on all noisy training labels.
+The original code identifier \texttt{clean\_upper\_bound} denotes the former;
+it is a reference condition, not a mathematical upper bound on test accuracy.
+
+\section{Experiment Algorithm and Cost}
+For each dataset, noise type, rate, model, and seed, the runner:
+\begin{enumerate}
+\item constructs the fixed training/validation/test split and training corruption;
+\item fits and evaluates clean and noisy baseline models;
+\item computes one shared out-of-fold probability matrix on noisy training data;
+\item evaluates each detector against the injected-corruption mask;
+\item removes or relabels its selected rows, retrains, and evaluates on the same test set;
+\item writes the ten result rows and an atomic training-provenance checkpoint.
+\end{enumerate}
+With five folds, each combination requires two baseline fits, five
+out-of-fold fits, and eight cleaned-model fits: 15 top-level estimator fits.
+Across 384 combinations this is 5,760 fits, excluding subsequent diagnostic
+retraining and reproducibility checks. A forest fit itself builds 200 trees.
+``Lightweight'' describes simple scores on conventional CPU estimators; it
+does not mean the full benchmark is cost-free or that runtime superiority was
+measured. The study does not provide a controlled timing comparison.

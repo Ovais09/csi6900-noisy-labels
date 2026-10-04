@@ -1,0 +1,88 @@
+\documentclass[11pt,letterpaper,oneside]{report}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,booktabs,array,longtable,graphicx}
+\usepackage{caption}
+\usepackage{cite}
+\usepackage[hidelinks,breaklinks]{hyperref}
+\usepackage{url}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Robust Tabular Classification under Noisy Labels}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+\setlength{\parskip}{0.35em}
+\setlength{\parindent}{1.2em}
+\setcounter{tocdepth}{1}
+\setcounter{secnumdepth}{2}
+\renewcommand{\bibname}{References}
+\captionsetup{font=small,labelfont=bf}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,keepspaces=true}
+\graphicspath{{report/generated/}}
+\input{report/generated/facts.tex}
+\newcommand{\reporttable}[4]{\begin{table}[htbp]\centering\small\caption{#2}\label{#3}\input{report/generated/#1.tex}\par\vspace{3pt}\footnotesize #4\end{table}}
+\hypersetup{pdftitle={Robust Tabular Classification under Noisy Labels: Benchmarking and Lightweight Cleaning},pdfauthor={Ovais Azeem}}
+
+\begin{document}
+\begin{titlepage}
+\centering
+{\large University of Ottawa\par}
+{\large School of Electrical Engineering and Computer Science\par}
+\vspace{1.5cm}
+{\LARGE\bfseries Robust Tabular Classification under Noisy Labels:\par}
+\vspace{0.4cm}
+{\LARGE\bfseries Benchmarking and Lightweight Cleaning\par}
+\vspace{1.4cm}
+{\Large CSI6900 Research Project Report\par}
+\vspace{1cm}
+{\large Ovais Azeem\par}
+{\large Student number: 300112311\par}
+\vspace{0.8cm}
+{\large Supervisor: Professor Thomas Tran\par}
+\vfill
+{\large October 3, 2026\par}
+\end{titlepage}
+\pagenumbering{roman}
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+Label errors can impair tabular classifiers, but detecting uncertain samples
+does not necessarily identify incorrect labels. This project benchmarks
+logistic regression, random forest, and histogram gradient boosting on four
+datasets with training-only symmetric and cyclic class-dependent corruption.
+Four noise rates, four seeds, and four out-of-fold detectors produce 3,840
+evaluation rows. Confidence, disagreement, margin, and a weighted combined
+score guide removal or relabeling. Confidence-based removal improves mean
+test accuracy by \ConfidenceRemoveGain{} percentage points over noisy training;
+combined-score removal improves it by \CombinedRemoveGain{} points.
+Confidence also provides the highest average detection F1. Margin-only
+cleaning is usually harmful. The combined score does not outperform
+confidence overall and largely preserves its binary ranking. Dataset-level
+inference with four datasets cannot establish significance at 0.05.
+An audited, containerized release preserves results, models, and figures.
+The findings support simple confidence filtering within this controlled,
+known-noise-budget benchmark, not universal superiority under real annotation noise.
+\tableofcontents
+\listoftables
+\listoffigures
+\clearpage
+\pagenumbering{arabic}
+\input{report/chapters/introduction.tex}
+\input{report/chapters/related_work.tex}
+\input{report/chapters/method.tex}
+\input{report/chapters/experiments.tex}
+\input{report/chapters/results.tex}
+\input{report/chapters/conclusion.tex}
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{References}
+\bibliographystyle{IEEEtran}
+\bibliography{report/references}
+\appendix
+\input{report/chapters/reproducibility.tex}
+\end{document}

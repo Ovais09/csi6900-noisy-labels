@@ -327,7 +327,9 @@ datasets against their source archive, checks provenance, and freezes a
 SHA-256 inventory. Run `python scripts/audit_release.py` after freezing to
 detect any changed or missing artifact.
 
-Generated result files are intentionally ignored by git.
+Working result directories are intentionally ignored by Git. The immutable
+code/results snapshot is now tracked with Git LFS under `releases/`; see
+`releases/README.md` for retrieval, attribution, and offline verification.
 
 ## Research Boundaries
 
@@ -359,7 +361,13 @@ Generated result files are intentionally ignored by git.
 
 ## Preserve The Release
 
-From a clean checkout, use the same Docker image to finalize and re-audit:
+The report uses the immutable `releases/code-results-50f8995.tar.gz` snapshot.
+Install Git LFS and run `git lfs pull` after cloning. Its source revision stays
+fixed even as report commits advance the working tree. Follow `releases/README.md`
+to restore and audit that snapshot without overwriting working results.
+
+For a **new** release, from a clean checkout use an image built with that
+checkout's `VCS_REF` to finalize and re-audit:
 
 ```bash
 docker run --rm --network none \
@@ -378,9 +386,10 @@ docker run --rm --network none \
 The bundle contains tracked source plus every frozen dataset, result, figure,
 and fitted model. It excludes `.git`, the virtual environment, and old scratch
 runs. `BUNDLE_MANIFEST.json` records all file checksums and `source_commit`.
-Keep this archive in a separate backup location; pushing Git does **not** back
-up these ignored artifacts. Only load trusted `.joblib` files: deserialization
-can execute code.
+The working `results/logs/` archive remains ignored. The selected immutable
+copy under `releases/` is backed up only after a successful Git/LFS push;
+ordinary Git pointers alone do not contain the binary. Keep an independent
+backup too. Only load trusted `.joblib` files: deserialization can execute code.
 
 To restore a trusted, verified bundle into an empty directory:
 
@@ -394,9 +403,23 @@ docker run --rm --network none \
   csi6900-restored python scripts/audit_release.py
 ```
 
-The report handoff is in `report/report_outline.md`; verified examples and
-their provenance are catalogued in `report/reference_sources.csv`. Neither
-an old example nor this audit guarantees a grade or replaces supervisor review.
+## LaTeX Report
+
+The complete manuscript is `report/main.tex`, with IEEE-numbered references
+in `report/references.bib` and a compiled copy at `report/final_report.pdf`.
+From the repository root:
+
+```bash
+docker build -f report/Dockerfile -t csi6900-report .
+docker run --rm --network none -v "$PWD:/work" csi6900-report
+```
+
+This rebuilds `report/build/main.pdf` from committed tables and figures without
+retraining. See `report/README.md` for evidence regeneration and review notes.
+The historical outline and report-example provenance remain in
+`report/report_outline.md` and `report/reference_sources.csv`. Neither the
+examples nor automated verification guarantees a grade or replaces author
+and supervisor review.
 
 ## Done Criteria
 

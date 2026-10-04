@@ -1,0 +1,234 @@
+\chapter{Results and Analysis}
+\section{Aggregate Classification Performance}
+Table~\ref{tab:overall} summarizes the complete balanced matrix. Mean accuracy
+falls from \CleanAccuracy{} with original training labels to \NoisyAccuracy{}
+with noisy labels, a loss of approximately 10.52 percentage points. Confidence
+removal recovers \ConfidenceRemoveGain{} points, while combined removal recovers
+\CombinedRemoveGain{} points. Neither restores the clean reference on average.
+The corresponding macro-F1 and AUROC values also favor confidence removal
+among the evaluated cleaning methods.
+
+\reporttable{overall}{Overall test performance across the balanced matrix.}{tab:overall}
+{Each method has 384 rows. Means weight datasets, models, noise types, rates,
+and seeds equally. ``pp'' denotes percentage points. Repeated clean values
+are a reference, not independent measurements.}
+
+Relabeling is beneficial on average for confidence, combined, and disagreement
+scoring, but their removal variants achieve higher aggregate accuracy.
+Margin-only removal is the worst intervention: accuracy is 0.7939, below the
+noisy baseline by 5.96 points. Margin relabeling also reduces accuracy, by
+2.56 points. Thus applying a nominally plausible uncertainty score is not
+sufficient to improve robustness; the relationship between the score and the
+\emph{observed label} matters.
+
+\section{RQ1: Sensitivity to Noise}
+Table~\ref{tab:loss} separates the accuracy loss by dataset, noise mechanism,
+and rate. The clean and noisy models are paired before aggregation. On Dry
+Bean, the mean loss under symmetric 40\% corruption is 2.92 points, compared
+with 20.75 points under cyclic corruption. Digits shows the same contrast:
+8.82 versus 29.26 points. This suggests that a concentrated wrong-class
+transition is more damaging than dispersing errors among many alternatives
+for these multiclass tasks. It does not establish a universal ordering of
+noise mechanisms, because only one cyclic map is evaluated.
+
+\reporttable{noise_loss}{Accuracy loss from clean to noisy training, in percentage points.}{tab:loss}
+{Each cell averages the paired loss across three models and four seeds.
+Rates are nominal training-label corruption fractions.}
+
+For Breast Cancer, both mechanisms are binary flips, and the differences
+reflect sampled rows and per-class versus global corruption rather than
+different destination labels. Wine is especially sensitive at high noise
+rates: its small training and test partitions limit precision. One changed
+test prediction on Wine corresponds to $1/36$, or about 2.78 accuracy points
+in a single run. Small differences should not be interpreted as strong
+rankings of methods.
+
+Figures~\ref{fig:symmetric} and \ref{fig:cyclic} show selected conditions
+across rates. They display averages, not uncertainty bands. The complete
+release contains per-model plots with seed-standard-deviation shading;
+those shaded regions are not confidence intervals over independent datasets.
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=\linewidth]{accuracy_symmetric.pdf}
+\caption{Accuracy under symmetric corruption. Each point averages three
+models and four seeds within a dataset. Selected methods are shown for
+legibility; all methods appear in Table~\ref{tab:overall}. Lines connect the
+four evaluated rates and do not represent fitted continuous trends.}
+\label{fig:symmetric}
+\end{figure}
+\begin{figure}[htbp]
+\centering\includegraphics[width=\linewidth]{accuracy_class_dependent.pdf}
+\caption{Accuracy under cyclic class-dependent corruption, aggregated as in
+Fig.~\ref{fig:symmetric}. High-rate cyclic corruption is particularly damaging
+on the multiclass tasks.}
+\label{fig:cyclic}
+\end{figure}
+
+\subsection{Variation across Model Families}
+Table~\ref{tab:models} reports dataset--model means across rates, mechanisms,
+and seeds. RF has the strongest mean noisy-label accuracy on Wine and Digits;
+LR has the strongest on Dry Bean. HGB has lower mean noisy accuracy than both
+other models on each of the four datasets. This is evidence about the fixed
+settings used here, not about optimally tuned boosting in general.
+For Wine, HGB rises from 0.7439 to 0.8429 after confidence removal but remains
+below the cleaned RF value of 0.9418.
+
+\reporttable{models}{Mean test accuracy by dataset and classifier.}{tab:models}
+{LR: logistic regression; RF: random forest; HGB: histogram gradient boosting.
+Each cell averages two noise types, four rates, and four seeds. ``Conf.'' and
+``Comb.'' denote confidence and combined scoring; rem./rel. denote removal/relabeling.}
+
+Removal is not always preferable to relabeling. On Digits with RF, confidence
+relabeling reaches 0.9370 versus 0.9330 for removal. On Dry Bean with HGB,
+the corresponding means are nearly tied. A global average therefore does
+not justify selecting one action blindly for every model--dataset pair.
+
+\section{RQ2: Detection of Injected Errors}
+Table~\ref{tab:detection} counts each detector once per experimental combination,
+not once for both removal and relabeling. Confidence has the highest average
+detection F1, 0.8072, followed by combined, 0.7504, disagreement, 0.6827, and
+margin, 0.2425. Because the selected fraction closely matches the injected
+fraction, precision and recall are nearly equal; this is partly a design
+property rather than independent evidence from two unrelated criteria.
+
+\reporttable{detection}{Injected-label-error detection, averaged over 384 combinations per detector.}{tab:detection}
+{Detection is evaluated on training rows. Removal and relabeling share each
+detector's mask and are not double-counted.}
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=\linewidth]{detection.pdf}
+\caption{Detection F1 by nominal rate and corruption mechanism. Each point
+averages the four datasets, three models, and four seeds. No test labels are
+used to compute a suspiciousness score.}
+\label{fig:detection}
+\end{figure}
+
+Margin-only selection behaves differently from confidence selection.
+A confidently wrong observed label can receive a low margin score when the
+model strongly predicts another class. Conversely, a correctly labeled but
+ambiguous example can receive a high margin score. The poor detection and
+downstream outcomes are consistent with this mismatch between uncertainty
+and label error. This is a mechanism-based interpretation of the scores,
+not a causal experiment isolating boundary examples.
+
+\section{RQ3: Effects of Cleaning and Relabeling}
+Figure~\ref{fig:gains} shows the paired accuracy gain within each dataset.
+Confidence removal improves all four dataset-level averages, from 2.24
+points on Dry Bean to 7.87 points on Wine. Margin removal reduces all four
+averages, from 4.14 points on Dry Bean to 7.12 points on Digits. This pattern
+is not merely the result of pooling the largest dataset with smaller ones:
+datasets receive equal weight and their separate effects are visible.
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=\linewidth]{dataset_gains.pdf}
+\caption{Paired accuracy gains over noisy training, in percentage points.
+Every cell averages 24 settings and four seeds for one dataset. Numeric
+annotations preserve interpretation without color.}
+\label{fig:gains}
+\end{figure}
+
+Table~\ref{tab:inference} reports both effect size and the limits of inference.
+Confidence removal improves 94.8\% of the 96 seed-averaged settings. This is
+not the same as its proportion of individually improved seed runs: aggregation
+reduces some seed variability before a setting is counted as a win.
+The confidence-removal exploratory interval is entirely positive, yet the
+exact two-sided $p$-value is 0.125 and its Holm-adjusted value is 1.000.
+There is no contradiction: the bootstrap percentile interval and discrete
+exact test answer the uncertainty question differently with very sparse
+dataset-level evidence. The interval must not be used to claim significance.
+
+\reporttable{inference}{Paired accuracy effects and exploratory dataset-level inference.}{tab:inference}
+{Gain and interval endpoints are percentage points. Intervals resample four
+dataset means. Win rates use 96 seed-averaged settings. $p_H$ is Holm-adjusted
+within the eight accuracy comparisons. None is significant at 0.05.}
+
+\subsection{Does the Combined Score Help?}
+The direct comparison in Table~\ref{tab:ablation} gives combined removal an
+average deficit of 0.58 accuracy points relative to confidence removal;
+combined relabeling has a deficit of 0.68 points. Combined scoring exceeds
+disagreement and margin on the grand mean, but does not beat the best simple
+component. All reported adjusted comparisons remain nonsignificant.
+
+\reporttable{ablation}{Combined scoring minus each component detector under the same action.}{tab:ablation}
+{Positive gain favors combined. Each comparison uses matched
+dataset--model--noise--rate--seed observations; inference uses four dataset
+means. Holm adjustment covers the six accuracy comparisons.}
+
+Breast Cancer's combined and confidence downstream results coincide in the
+aggregate, as the binary ranking analysis predicts. For each of the three
+multiclass datasets, confidence has a larger mean gain for both actions.
+The combination can shift highly uncertain examples upward without providing
+additional evidence that their observed labels are wrong. A different weight
+choice might behave differently, but choosing it after inspecting these
+test results would require a new, independently evaluated selection procedure.
+The present negative result should not be obscured by retrospective tuning.
+
+\subsection{A Concrete Failure despite Good Detection}
+The saved-model example uses Dry Bean, RF, symmetric 20\% noise, confidence
+scoring, and seed 42. Table~\ref{tab:diagnostic} makes the failure case explicit.
+Detection F1 is 0.9151, but removal and relabeling both reduce test accuracy
+relative to the noisy baseline. They improve macro AUROC in this setting,
+showing that probability ranking and hard-label accuracy can move in
+different directions. The small differences do not support a separate
+statistical conclusion from one seed.
+
+\reporttable{diagnostic}{Illustrative saved-model setting: Dry Bean/RF/symmetric 20\%/seed 42.}{tab:diagnostic}
+{Confidence is used for both cleaning actions. PR AUC is the trapezoidal area
+under the micro-averaged precision--recall curve, not average precision.}
+
+The noisy classifier's confusion matrix in Fig.~\ref{fig:confusion} identifies
+where residual errors occur. Class IDs are defined in Chapter~4. This example
+is a diagnostic illustration, not an unbiased choice of the best-performing
+setting. The full matrix, rather than this single case, supports the aggregate
+comparison. ROC and PR curves for the same saved classifier are provided in
+Appendix~A.
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=.88\linewidth]{noisy_baseline_confusion_matrix.pdf}
+\caption{Test confusion matrix for the illustrative noisy RF classifier.
+Rows are reference classes and columns predicted classes. The test set has
+2,709 examples and was not corrupted.}
+\label{fig:confusion}
+\end{figure}
+
+\section{Threats to Validity}
+\textbf{Internal validity.} Shared splits, training-only out-of-fold scoring,
+pipeline-local scaling, exact-count corruption, and duplicate removal reduce
+leakage risk. Saved checksums and re-execution provide evidence that the
+tables correspond to the code. Nevertheless, testing cannot exclude every
+implementation error. The same integer seed drives multiple random processes;
+results use deterministic paired conditions rather than independently
+randomized substreams. A future design could study sensitivity to separate
+split, corruption, and estimator seeds.
+
+\textbf{Construct validity.} The injected mask is an operational definition
+of noise. It does not establish that the original labels are correct. The
+cyclic transition is arbitrary in class-ID space, and the known-rate budget
+is unavailable in many applications. Margin measures uncertainty, while
+confidence combines possible label error with model misspecification.
+The reserved validation data are unused; this avoids tuning leakage but
+does not evaluate practical threshold selection.
+
+\textbf{External validity.} Four numeric datasets, only one binary task,
+and no real audited annotation errors limit generalization. Digits is
+image-derived and the other datasets are relatively small. There are no
+mixed categorical tables, deployment shifts, feature-noise experiments,
+or calibrated estimates of label-error prevalence. No clinical or other
+high-stakes use is supported by these experiments.
+Random stratified partitions do not establish generalization to unseen
+patients, writers, or collection sites; subject-group independence is not
+evaluated by this benchmark.
+
+\textbf{Comparative validity.} Only fixed estimator parameters and four
+simple scores are compared. Confident learning, robust losses, stronger
+tabular learners, instance-dependent corruption, and adaptive budgets remain
+unmeasured. No runtime benchmark establishes that the proposed pipeline is
+faster than alternatives. The combined score's modest engineering complexity
+is not evidence of a new algorithmic contribution.
+
+\textbf{Statistical validity.} The 3,840 rows share datasets, splits,
+corruptions, and repeated references. They cannot be treated as independent
+replicates. Four dataset means are insufficient for precise population-level
+inference; the convenience sample also weakens generalization beyond the
+observed tasks. Retrospective best-by-setting tables are descriptive only
+and are not an evaluated model-selection policy.

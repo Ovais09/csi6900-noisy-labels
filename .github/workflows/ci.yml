@@ -61,3 +61,26 @@ jobs:
           docker run --rm --network none csi6900-noisy-labels
           python scripts/run_full_pipeline.py
           --quick --skip-download
+
+  report:
+    name: LaTeX report
+    runs-on: ubuntu-latest
+    needs: quality
+
+    steps:
+      - name: Check out report source and compact assets
+        uses: actions/checkout@v4
+
+      - name: Build TeX image
+        run: docker build -f report/Dockerfile -t csi6900-report .
+
+      - name: Compile report offline
+        run: docker run --rm --network none -v "$PWD:/work" csi6900-report
+
+      - name: Reject unresolved references and layout warnings
+        run: >-
+          docker run --rm --network none -v "$PWD:/work" csi6900-report
+          python -c "from pathlib import Path;
+          log = Path('report/build/main.log').read_text();
+          assert not any(word in log for word in ('Warning', 'Overfull', 'Underfull'));
+          assert Path('report/build/main.pdf').stat().st_size > 10000"

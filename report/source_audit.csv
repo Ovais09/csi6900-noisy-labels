@@ -1,0 +1,21 @@
+bib_key,primary_source,verification_scope
+frenay2014,https://api.crossref.org/works/10.1109/TNNLS.2013.2292894,Publisher-deposited metadata confirms May 2014 not the institutional record's 2015; institutional abstract checked
+nazaretyan2025,https://link.springer.com/article/10.1007/s10462-025-11293-9,Publisher full text; 34 surveyed and 20 benchmarked methods; no universal winner
+yang2024,https://link.springer.com/article/10.1186/s12911-024-02581-5,Publisher abstract and metadata; EHR adaptation of vision methods
+eisenburger2025,https://arxiv.org/abs/2409.08647v2,Author preprint abstract and version history; version 2 January 2025
+devries2025,https://link.springer.com/article/10.1007/s41060-025-00786-z,Publisher full text; SYNLABEL and limitations of assumed-clean labels
+li2024,https://arxiv.org/abs/2404.04159,Author preprint abstract; taxonomy and real-world-guided noise
+northcutt2021,https://jair.org/index.php/jair/article/view/12125,Publisher abstract and DOI; confident joint not implemented in this benchmark
+demsar2006,https://jmlr.org/papers/v7/demsar06a.html,Publisher abstract and metadata; comparisons across datasets
+holm1979,https://sci2s.ugr.es/keel/pdf/specific/articulo/0052_001.pdf,Original scanned article; sequential multiple-testing procedure and bibliographic metadata
+pedregosa2011,https://jmlr.org/papers/v12/pedregosa11a.html,Publisher metadata and abstract; software citation
+breiman2001,https://doi.org/10.1023/A:1010933404324,Publisher abstract and metadata; ensemble construction
+uciCancer,https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic,UCI dataset dimensions description citation DOI and license
+uciWine,https://archive.ics.uci.edu/dataset/109/wine,UCI dataset dimensions description citation DOI and license
+uciBean,https://archive.ics.uci.edu/dataset/602/dry+bean+dataset,UCI source dimensions description DOI and CC BY 4.0; deduplication is this project's transformation
+sklearnDigits,https://scikit-learn.org/1.6/modules/generated/sklearn.datasets.load_digits.html,Versioned API; 1797 samples 64 features and 10 classes
+uciDigits,https://archive.ics.uci.edu/dataset/80/optical+recognition+of+handwritten+digits,UCI attribution DOI and CC BY 4.0; full source has 5620 rows and is not this benchmark's 1797-row subset
+sklearnLR,https://scikit-learn.org/1.6/modules/generated/sklearn.linear_model.LogisticRegression.html,Versioned defaults and liblinear one-vs-rest behavior
+sklearnRF,https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.RandomForestClassifier.html,Versioned defaults; project overrides trees to 200
+sklearnHGB,https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.HistGradientBoostingClassifier.html,Versioned defaults; auto early stopping requires more than 10000 fitting samples
+scipyPermutation,https://docs.scipy.org/doc/scipy-1.13.1/reference/generated/scipy.stats.permutation_test.html,Versioned API; paired one-sample sign flips and exact enumeration

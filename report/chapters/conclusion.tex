@@ -1,0 +1,62 @@
+\chapter{Conclusion and Future Work}
+\section{Answers to the Research Questions}
+\textbf{RQ1:} Training-label corruption reduces aggregate performance and
+its effect depends strongly on dataset, model, and transition structure.
+The mean clean-reference accuracy is \CleanAccuracy{}, compared with
+\NoisyAccuracy{} for noisy training. High-rate cyclic corruption is
+particularly damaging on Digits and Dry Bean. Fixed-default HGB is more
+sensitive than the other evaluated families on the dataset-level means,
+but this is not a conclusion about optimally tuned boosting.
+
+\textbf{RQ2:} Out-of-fold confidence is the most effective of the four
+evaluated detectors on average, with detection F1 of 0.8072. Combined
+scoring follows at 0.7504. General uncertainty, measured by the top-two
+probability margin, is a poor proxy for injected label errors in this design.
+The shared out-of-fold matrix and common selection budget make the component
+comparison directly interpretable.
+
+\textbf{RQ3:} Confidence-based removal improves average test accuracy by
+\ConfidenceRemoveGain{} percentage points and combined removal by
+\CombinedRemoveGain{} points. Neither closes the full gap to clean training.
+Relabeling helps on average for three detectors, but is not uniformly better
+than removal. High detection quality does not guarantee a downstream accuracy
+gain, as the saved Dry Bean example demonstrates. Margin-only cleaning is
+harmful on all four dataset-level averages.
+
+\section{Contribution Supported by the Evidence}
+The project delivers a reproducible benchmark and a transparent evaluation of
+a simple combined-score hypothesis. The hypothesis does not succeed against
+confidence alone on the aggregate comparison. The binary analysis explains
+why the combination often cannot change confidence's ranking; the multiclass
+experiments show that changing the ranking does not necessarily improve it.
+These results favor starting with a simple confidence baseline before adding
+uncertainty terms, within the controlled setting tested here.
+
+The release includes an auditable matrix, generated tables and figures,
+illustrative saved models, tests, pinned dependencies, and an immutable
+Git-LFS archive. This supports verification and extension of the experiment,
+not a claim of universal method superiority. With four datasets, no exact
+two-sided comparison can reach significance at 0.05. Conclusions remain
+descriptive and exploratory.
+
+\section{Priorities for Future Work}
+The first priority is to remove the oracle-budget assumption. A future study
+should choose thresholds or removal fractions using only training information
+or a properly allocated validation set, then evaluate the complete selection
+procedure on untouched test data. This would test whether the current gains
+survive uncertainty about the actual noise prevalence.
+
+Second, the comparison should add established label-quality methods such as
+confident learning, alternative cyclic maps, and feature-dependent corruptions.
+Real annotation-error datasets would distinguish injected-error recovery from
+genuine data-quality improvement. Additional mixed-type tabular datasets
+would broaden the empirical population and improve the resolution of
+dataset-level inference.
+
+Third, model and score choices should be evaluated under a prespecified tuning
+protocol. Probability calibration, class-aware selection budgets, and
+confidence-gated relabeling are reasonable hypotheses, but should not be
+selected from the current test outcomes and presented as already validated.
+Randomized tie handling and separately seeded random processes are additional
+sensitivity checks. Finally, controlled runtime and memory measurements
+would turn the qualitative term ``lightweight'' into a measured cost comparison.

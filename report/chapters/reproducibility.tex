@@ -1,0 +1,100 @@
+\chapter{Reproducibility and Supplementary Diagnostics}
+\section{Immutable Evidence}
+The report is based on the code/results release at revision:
+\begin{quote}\small\path{50f8995a014f4d68714cba7a4ea81e911c859374}\end{quote}
+The original training revision is:
+\begin{quote}\small\path{2d0dfbf34480bba5e602f165fd12dc0c3ef75ef8}\end{quote}
+Later report commits do not
+rewrite the historical training record.
+
+The main result CSV contains 3,840 rows and has SHA-256
+\begin{quote}\small\ttfamily
+\path{2576804e3caadd3025ff95a9835729ced219fd38dce4ca30ee4a399727a61150}.
+\end{quote}
+The archive \path{releases/code-results-50f8995.tar.gz} has SHA-256
+\begin{quote}\small\ttfamily
+\path{73b15ce8a707f671f7d7102d8ac776d504a9786afda5d933f0a72e7363861e58}.
+\end{quote}
+It contains 264 source and artifact files, including the 181 items in the
+frozen audit inventory. The source repository is
+\url{https://github.com/Ovais09/csi6900-noisy-labels}. Git LFS stores the large
+archive separately from the ordinary Git pointer. It must be fetched before
+extracting the release. The archive must not be unpacked over an active
+working tree, and untrusted serialized models must not be loaded.
+
+\section{Artifact Map}
+\begin{longtable}{>{\raggedright\arraybackslash}p{.38\linewidth}>{\raggedright\arraybackslash}p{.55\linewidth}}
+\toprule
+Artifact & Purpose \\
+\midrule
+\endhead
+\path{configs/experiment_config.yaml} & Exact experimental grid. \\
+\path{results/tables/main_experiment_results.csv} & Per-combination and per-condition metrics and counts. \\
+\path{results/tables/summary_results.csv} & 960 rows aggregating the four seeds within settings. \\
+\path{results/tables/analysis/} & Eight analysis tables, including paired cleaning and direct detector comparisons. \\
+\path{results/models/} & Four RF models for one Dry Bean setting, not all models fitted by the benchmark. \\
+\path{results/figures/} & 60 main and 13 diagnostic figures, each in PNG and PDF. \\
+\path{results/logs/run_manifest.json} & Config, data, environment, result, and original training provenance. \\
+\path{results/logs/release_manifest.json} & Artifact sizes and SHA-256 hashes. \\
+\path{results/logs/final_audit.json} & Passing audit of that frozen inventory. \\
+\path{report/generated/evidence.json} & Checksummed inputs used to generate report tables and figures. \\
+\bottomrule
+\end{longtable}
+
+The report generator recomputes analysis tables from the exact CSV and checks
+them against the frozen versions before producing LaTeX tables. Numeric
+summary tables are not manually transcribed. Report-specific plots average
+the same matrix; selected diagnostic PDFs are copied unchanged after hash
+verification. Their source values and revision are recorded in the evidence
+file. The IEEEtran BibTeX style produces the numbered bibliography.
+
+\section{Build and Reproduction Commands}
+The complete extraction and audit commands are in \path{releases/README.md}.
+The following commands assume the Git-LFS archive has been verified and
+restored to an empty \path{releases/restored/} directory:
+\begin{lstlisting}
+python scripts/make_report_assets.py --release-root releases/restored
+docker build -f report/Dockerfile -t csi6900-report .
+docker run --rm --network none -v "$PWD:/work" csi6900-report
+\end{lstlisting}
+The last command runs pdfLaTeX and BibTeX through latexmk and writes
+\path{report/build/main.pdf}. Building from the already committed report
+assets does not require model training or downloading datasets. A full
+benchmark rerun uses the archived configuration and pipeline in its own
+checkout; it should not overwrite the frozen evidence used by this report.
+
+\section{Preparation and Review}
+AI assistance was used during software implementation, testing, analysis
+support, and manuscript preparation. The numerical evidence is tied to the
+saved experiment artifacts, not generated as illustrative data. Source
+verification and software checks do not replace the author's responsibility
+to understand the methods, review the conclusions, and comply with the
+supervisor's and institution's requirements for assistance and disclosure.
+
+\section{Supplementary Macro F1 and Curves}
+Figure~\ref{fig:f1} provides the macro-F1 counterpart of the cyclic accuracy
+plot. Figures~\ref{fig:roc} and \ref{fig:pr} concern only the saved noisy RF
+classifier from the Dry Bean diagnostic setting. Their smooth ranking
+summaries should not be interpreted as proof that cleaning improves the
+hard-label predictions in that setting.
+
+\begin{figure}[htbp]
+\centering\includegraphics[width=\linewidth]{f1_macro_class_dependent.pdf}
+\caption{Macro F1 under cyclic class-dependent corruption. Each point averages
+three models and four seeds within a dataset. The plotted methods and rates
+match the main accuracy comparison.}
+\label{fig:f1}
+\end{figure}
+\begin{figure}[htbp]
+\centering\includegraphics[width=.9\linewidth]{noisy_baseline_roc_curve.pdf}
+\caption{Micro-averaged ROC curve for the noisy Dry Bean RF classifier,
+symmetric 20\% corruption and seed 42. Micro ROC AUC is approximately 0.9878;
+the main metric for this model is macro one-vs-rest AUROC, approximately 0.9874.}
+\label{fig:roc}
+\end{figure}
+\begin{figure}[htbp]
+\centering\includegraphics[width=.9\linewidth]{noisy_baseline_precision_recall_curve.pdf}
+\caption{Micro-averaged precision--recall curve for the same noisy classifier.
+Trapezoidal PR AUC is approximately 0.9558. This is not average precision.}
+\label{fig:pr}
+\end{figure}
