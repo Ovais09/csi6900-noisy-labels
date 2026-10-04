@@ -5,12 +5,14 @@ import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils.io import load_dataframe
+from src.utils.plotting import CONDITION_LABELS, save_report_figure
 
 try:
     import seaborn as sns
@@ -30,8 +32,8 @@ def add_plot_labels(df):
 
     def label_row(row):
         if row["condition"] in {"clean_upper_bound", "noisy_baseline"}:
-            return row["condition"]
-        return f"{row['condition']} ({row['detector']})"
+            return CONDITION_LABELS[row["condition"]]
+        return f"{CONDITION_LABELS[row['condition']]} ({row['detector']})"
 
     if "detector" not in df.columns:
         df["detector"] = "combined"
@@ -50,14 +52,16 @@ def plot_metric(df, metric, dataset, noise_type, model, output_dir):
     if subset.empty:
         return
 
-    plt.figure(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(11, 5.5))
     if sns is not None:
         _seaborn_lineplot(
             data=subset,
             x="noise_rate",
             y=metric,
             hue="plot_condition",
-            marker="o",
+            style="plot_condition",
+            markers=True,
+            ax=ax,
         )
     else:
         for condition, group in subset.groupby("plot_condition"):
@@ -69,15 +73,21 @@ def plot_metric(df, metric, dataset, noise_type, model, output_dir):
                 label=condition,
             )
         plt.legend()
-    plt.title(f"{metric} vs Noise Rate: {dataset}, {noise_type}, {model}")
-    plt.xlabel("Noise Rate")
-    plt.ylabel(metric)
-    plt.tight_layout()
+    ax.set_title(f"{dataset.replace('_', ' ').title()} | {model.replace('_', ' ')}\n"
+                 f"{noise_type.replace('_', ' ')} noise; mean +/- 1 seed SD")
+    ax.set_xlabel("Training label noise")
+    ax.set_ylabel({"accuracy": "Accuracy", "f1_macro": "Macro F1"}.get(metric, metric))
+    ax.xaxis.set_major_formatter(PercentFormatter(1))
+    ax.set_xticks(sorted(subset["noise_rate"].unique()))
+    ax.set_ylim(0, 1.02)
+    ax.grid(axis="y", alpha=0.2)
+    ax.legend(title=None, loc="upper left", bbox_to_anchor=(1.02, 1), frameon=False)
+    fig.tight_layout()
 
     filename = f"{dataset}_{noise_type}_{model}_{metric}.png"
     path = output_dir / filename
-    plt.savefig(path, dpi=300)
-    plt.close()
+    save_report_figure(fig, path)
+    plt.close(fig)
     print(f"Saved {path}")
 
 
@@ -97,7 +107,7 @@ def plot_detection_f1(df, dataset, model, output_dir):
     if subset.empty:
         return
 
-    plt.figure(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(10, 5.5))
     if sns is not None:
         _seaborn_lineplot(
             data=subset,
@@ -105,7 +115,8 @@ def plot_detection_f1(df, dataset, model, output_dir):
             y="det_f1",
             hue="detector",
             style="noise_type",
-            marker="o",
+            markers=True,
+            ax=ax,
         )
     else:
         for (detector, noise_type), group in subset.groupby(["detector", "noise_type"]):
@@ -117,14 +128,20 @@ def plot_detection_f1(df, dataset, model, output_dir):
                 label=f"{detector}, {noise_type}",
             )
         plt.legend()
-    plt.title(f"Detection F1 vs Noise Rate: {dataset}, {model}")
-    plt.xlabel("Noise Rate")
-    plt.ylabel("Detection F1")
-    plt.tight_layout()
+    ax.set_title(f"{dataset.replace('_', ' ').title()} | {model.replace('_', ' ')}\n"
+                 "Detection F1; mean +/- 1 seed SD")
+    ax.set_xlabel("Training label noise")
+    ax.set_ylabel("Detection F1")
+    ax.xaxis.set_major_formatter(PercentFormatter(1))
+    ax.set_xticks(sorted(subset["noise_rate"].unique()))
+    ax.set_ylim(0, 1.02)
+    ax.grid(axis="y", alpha=0.2)
+    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), frameon=False)
+    fig.tight_layout()
 
     path = output_dir / f"{dataset}_{model}_detection_f1.png"
-    plt.savefig(path, dpi=300)
-    plt.close()
+    save_report_figure(fig, path)
+    plt.close(fig)
     print(f"Saved {path}")
 
 

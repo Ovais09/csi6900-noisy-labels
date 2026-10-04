@@ -150,3 +150,18 @@ def test_validator_rejects_missing_auroc_and_impossible_counts():
     assert "finite_metrics" in failures
     assert "n_corrupted_presence" in failures
     assert "n_suspicious_count" in failures
+
+
+def test_validator_rejects_plausible_but_inconsistent_detection_metrics():
+    malformed = _results()
+    cleaning = malformed["condition"].isin(["remove_suspicious", "relabel_suspicious"])
+    malformed.loc[cleaning, "det_f1"] = 0.123456
+    failures = {issue.check for issue in validate_results(malformed, _config()) if issue.status == "FAIL"}
+    assert "detection_arithmetic" in failures
+
+
+def test_validator_rejects_accuracy_inconsistent_with_test_size():
+    malformed = _results()
+    malformed.loc[0, "accuracy"] = 0.123456
+    failures = {issue.check for issue in validate_results(malformed, _config()) if issue.status == "FAIL"}
+    assert "accuracy_count_arithmetic" in failures

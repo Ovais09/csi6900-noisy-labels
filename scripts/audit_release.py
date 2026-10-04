@@ -6,11 +6,19 @@ import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from zipfile import ZipFile
 
 import joblib
 import matplotlib.image as mpimg
 import numpy as np
 import pandas as pd
+from sklearn.metrics import (
+    auc,
+    classification_report,
+    precision_recall_curve,
+    roc_auc_score,
+)
+from sklearn.preprocessing import label_binarize
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -30,6 +38,7 @@ from scripts.validate_results import validate_results, validation_report
 from src.data.load_datasets import load_dataset
 from src.data.preprocessing import make_train_val_test_split
 from src.evaluation.metrics import classification_metrics
+from src.noise.inject_noise import inject_class_dependent_noise, inject_symmetric_noise
 from src.utils.config import load_experiment_config
 from src.utils.io import load_dataframe, save_json_atomic
 from src.utils.provenance import dataset_fingerprint, git_state, sha256_file
@@ -38,6 +47,7 @@ from src.utils.release import (
     load_release_manifest,
     verify_release_manifest,
 )
+from src.utils.training import training_manifest_path, verify_training_record
 
 ANALYSIS_FILENAMES = (
     "condition_summary.csv",
@@ -47,6 +57,7 @@ ANALYSIS_FILENAMES = (
     "noise_impact_summary.csv",
     "best_cleaning_by_setting.csv",
     "paired_cleaning_comparisons.csv",
+    "combined_detector_comparisons.csv",
 )
 METADATA_FILENAMES = (
     "dataset_overview.csv",
@@ -94,7 +105,7 @@ def _read_csv(path) -> pd.DataFrame:
 
 
 def _assert_frame_matches(actual_path, expected: pd.DataFrame) -> pd.DataFrame:
-    actual = _read_csv(actual_path)
+    actual = load_dataframe(actual_path)
     try:
         pd.testing.assert_frame_equal(
             actual.reset_index(drop=True),
@@ -130,6 +141,15 @@ def _validate_png(path) -> None:
         raise ValueError(f"PNG appears blank: {path}")
 
 
+def _check_vector_companions(png_paths):
+    paths = [path.with_suffix(".pdf") for path in png_paths]
+    for path in paths:
+        content = path.read_bytes()
+        if not content.startswith(b"%PDF-") or not content.rstrip().endswith(b"%%EOF"):
+            raise ValueError(f"Missing or malformed vector PDF: {path}")
+    return paths
+
+
 def expected_main_figures(config, figure_dir) -> list[Path]:
     """Return the exact canonical figure set for an experiment config."""
 
@@ -155,6 +175,44 @@ def _check_result_matrix(results, config):
         detail = "; ".join(f"{issue.check}: {issue.detail}" for issue in failures)
         raise ValueError(detail)
     return f"{len(issues)} contract checks passed"
+
+
+def _check_splits_and_noise(results, config):
+    """Reconstruct source splits and corruption independently of saved counts."""
+    split_count = 0
+    for name in config["datasets"]:
+        dataset = load_dataset(name)
+        if dataset.X.duplicated().any():
+            raise ValueError(f"Duplicate feature rows could leak across splits: {name}")
+        original_y = dataset.y.copy()
+        for seed in config["seeds"]:
+            X_train, X_val, X_test, y_train, y_val, y_test = make_train_val_test_split(
+                dataset.X, dataset.y, random_state=seed,
+            )
+            indices = [set(frame.index) for frame in (X_train, X_val, X_test)]
+            if any(indices[i] & indices[j] for i in range(3) for j in range(i + 1, 3)):
+                raise ValueError(f"Overlapping split indices: {name}, seed={seed}")
+            if set.union(*indices) != set(dataset.X.index):
+                raise ValueError(f"Split coverage differs from source: {name}")
+            for noise_type in config["noise_types"]:
+                injector = (inject_symmetric_noise if noise_type == "symmetric"
+                            else inject_class_dependent_noise)
+                for rate in config["noise_rates"]:
+                    _, mask = injector(y_train, rate, random_state=seed)
+                    rows = results[
+                        results["dataset"].eq(name) & results["random_state"].eq(seed)
+                        & results["noise_type"].eq(noise_type) & results["noise_rate"].eq(rate)
+                    ]
+                    expected = {"n_train": len(X_train), "n_test": len(X_test),
+                                "n_corrupted": int(mask.sum())}
+                    if rows.empty or any(not rows[key].eq(value).all()
+                                         for key, value in expected.items()):
+                        raise ValueError(f"Reconstructed split/noise counts differ: {name}")
+            pd.testing.assert_series_equal(y_val, original_y.loc[y_val.index])
+            pd.testing.assert_series_equal(y_test, original_y.loc[y_test.index])
+            pd.testing.assert_series_equal(dataset.y, original_y)
+            split_count += 1
+    return f"{split_count} disjoint splits, untouched holdouts, and exact corruption counts"
 
 
 def _check_summary(results, summary_path):
@@ -217,7 +275,9 @@ def _check_main_figures(config, figure_dir):
         )
     for path in paths:
         _validate_png(path)
-    return f"{len(paths)} decodable, nonblank figures", paths
+    return f"{len(paths)} nonblank PNGs with vector PDF companions", [
+        *paths, *_check_vector_companions(paths),
+    ]
 
 
 def _resolve_artifact_path(path, project_root):
@@ -234,6 +294,8 @@ def _check_model_artifacts(
     random_state,
     model_output_dir,
     project_root,
+    results=None,
+    cv_folds=None,
 ):
     artifact_dir = model_artifact_dir(
         model_output_dir,
@@ -259,6 +321,27 @@ def _check_model_artifacts(
     for column, expected in selectors.items():
         if not metadata[column].eq(expected).all():
             raise ValueError(f"Model metadata has an unexpected {column}")
+    expected_detectors = metadata["condition"].map({
+        "clean_upper_bound": "none", "noisy_baseline": "none",
+        "remove_suspicious": detector, "relabel_suspicious": detector,
+    })
+    if not metadata["detector"].eq(expected_detectors).all():
+        raise ValueError("Model metadata has an unexpected detector")
+    if cv_folds is not None and not metadata["cv_folds"].eq(cv_folds).all():
+        raise ValueError("Model metadata has an unexpected cv_folds")
+    if results is not None:
+        subset = results.copy()
+        for column, expected in selectors.items():
+            subset = subset[subset[column].eq(expected)]
+        subset = subset[subset["detector"].isin(["none", detector])]
+        try:
+            pd.testing.assert_frame_equal(
+                metadata[list(results.columns)].sort_values("condition").reset_index(drop=True),
+                subset.sort_values("condition").reset_index(drop=True),
+                check_dtype=False, check_exact=False, rtol=1e-12, atol=1e-12,
+            )
+        except AssertionError as error:
+            raise ValueError("Saved models disagree with the canonical result matrix") from error
 
     dataset = load_dataset(dataset_name)
     _, _, X_test, _, _, y_test = make_train_val_test_split(
@@ -280,14 +363,14 @@ def _check_model_artifacts(
             raise ValueError(f"Saved artifact is not a classifier: {path}")
         metrics = classification_metrics(model, X_test, y_test)
         for metric in ("accuracy", "f1_macro", "auroc"):
-            if not np.isclose(metrics[metric], getattr(row, metric), atol=1e-12):
+            if not np.isclose(metrics[metric], getattr(row, metric), rtol=1e-12, atol=1e-12):
                 raise ValueError(f"Reloaded model {metric} mismatch: {path}")
         paths.append(path)
 
     return "4 models reloaded, hashed, and reproduced their metrics", paths, metadata
 
 
-def _check_diagnostics(table_dir, figure_dir, model_metadata):
+def _check_diagnostics(table_dir, figure_dir, model_metadata, project_root=PROJECT_ROOT):
     table_dir = Path(table_dir)
     figure_dir = Path(figure_dir)
     summary_path = table_dir / "diagnostic_summary.csv"
@@ -299,6 +382,12 @@ def _check_diagnostics(table_dir, figure_dir, model_metadata):
         raise ValueError("Diagnostic summary has an invalid condition set")
     if set(report["condition"]) != set(MODEL_CONDITIONS):
         raise ValueError("Classification report has an invalid condition set")
+    metadata_columns = [column for column in model_metadata
+                        if column not in {"model_path", "model_bytes", "model_sha256"}]
+    pd.testing.assert_frame_equal(
+        summary[metadata_columns], model_metadata[metadata_columns],
+        check_dtype=False, check_exact=False, rtol=1e-12, atol=1e-12,
+    )
     merged = summary.merge(
         model_metadata[
             ["condition", "accuracy", "f1_macro", "auroc"]
@@ -311,12 +400,39 @@ def _check_diagnostics(table_dir, figure_dir, model_metadata):
         if not np.allclose(
             merged[f"{metric}_diagnostic"],
             merged[f"{metric}_model"],
+            rtol=1e-12,
             atol=1e-12,
         ):
             raise ValueError(f"Diagnostic and model metadata disagree on {metric}")
     for metric in ("diagnostic_roc_auc", "diagnostic_pr_auc"):
         if not summary[metric].between(0.0, 1.0).all():
             raise ValueError(f"Diagnostic metric is outside [0, 1]: {metric}")
+
+    first = model_metadata.iloc[0]
+    dataset = load_dataset(first["dataset"])
+    _, _, X_test, _, _, y_test = make_train_val_test_split(
+        dataset.X, dataset.y, random_state=int(first["random_state"]),
+    )
+    expected_reports = []
+    for row in model_metadata.itertuples(index=False):
+        model = joblib.load(_resolve_artifact_path(row.model_path, project_root))
+        class_report = classification_report(y_test, model.predict(X_test),
+                                             output_dict=True, zero_division=0)
+        for label, values in class_report.items():
+            if isinstance(values, dict):
+                expected_reports.append({"condition": row.condition, "label": label, **values})
+        proba = model.predict_proba(X_test)
+        binary = label_binarize(y_test, classes=model.classes_)
+        targets, scores = ((binary.ravel(), proba[:, 1]) if len(model.classes_) == 2
+                           else (binary.ravel(), proba.ravel()))
+        precision, recall, _ = precision_recall_curve(targets, scores)
+        expected_scores = {"diagnostic_roc_auc": roc_auc_score(targets, scores),
+                           "diagnostic_pr_auc": auc(recall, precision)}
+        diagnostic = summary.loc[summary["condition"].eq(row.condition)].iloc[0]
+        for metric, value in expected_scores.items():
+            if not np.isclose(diagnostic[metric], value, rtol=1e-12, atol=1e-12):
+                raise ValueError(f"Recomputed diagnostic differs: {row.condition}, {metric}")
+    _assert_frame_matches(report_path, pd.DataFrame(expected_reports))
 
     figure_paths = [figure_dir / name for name in DIAGNOSTIC_FIGURE_FILENAMES]
     actual_names = {path.name for path in figure_dir.glob("*.png")}
@@ -330,7 +446,7 @@ def _check_diagnostics(table_dir, figure_dir, model_metadata):
     for path in figure_paths:
         _validate_png(path)
 
-    paths = [summary_path, report_path, *figure_paths]
+    paths = [summary_path, report_path, *figure_paths, *_check_vector_companions(figure_paths)]
     return f"2 tables and {len(figure_paths)} figures are consistent", paths
 
 
@@ -377,6 +493,24 @@ def _check_processed_datasets(config, processed_dir, project_root):
         ):
             raise ValueError(f"Dataset dimensions disagree with manifest: {row.dataset}")
         paths.append(path)
+    if "dry_bean" in config["datasets"]:
+        from src.data.external_datasets import (
+            DRY_BEAN_ARFF_MEMBER,
+            DRY_BEAN_LABEL_MAPPING_PATH,
+            DRY_BEAN_PROCESSED_PATH,
+            DRY_BEAN_RAW_DIR,
+            DRY_BEAN_ZIP_PATH,
+            parse_dry_bean_arff,
+        )
+        arff_path = DRY_BEAN_RAW_DIR / DRY_BEAN_ARFF_MEMBER
+        with ZipFile(DRY_BEAN_ZIP_PATH) as archive:
+            if archive.read(DRY_BEAN_ARFF_MEMBER) != arff_path.read_bytes():
+                raise ValueError("Extracted Dry Bean source differs from its raw archive")
+        source, mapping = parse_dry_bean_arff(arff_path)
+        _assert_frame_matches(DRY_BEAN_PROCESSED_PATH, source)
+        _assert_frame_matches(DRY_BEAN_LABEL_MAPPING_PATH, mapping)
+        paths.extend([DRY_BEAN_ZIP_PATH, arff_path, DRY_BEAN_PROCESSED_PATH,
+                      DRY_BEAN_LABEL_MAPPING_PATH])
     return f"{len(config['datasets'])} exported datasets match their loaders", paths
 
 
@@ -405,10 +539,14 @@ def _check_run_manifest(manifest_path, config_path, results_path, config, projec
     dependencies = manifest.get("runtime", {}).get("dependencies", {})
     if not dependencies or any(value is None for value in dependencies.values()):
         raise ValueError("Run manifest has incomplete dependency versions")
+    training = verify_training_record(config, results_path, project_root)
+    if manifest.get("training") != training:
+        raise ValueError("Run manifest has stale or missing original training provenance")
     return "config, data, result, environment, and Git fingerprints match", [
         Path(config_path),
         Path(results_path),
         manifest_path,
+        training_manifest_path(results_path),
     ]
 
 
@@ -438,6 +576,9 @@ def audit_release(args):
         checks,
         "result_matrix",
         lambda: _check_result_matrix(results, config),
+    )
+    artifact_paths += _run_check(
+        checks, "splits_and_corruption", lambda: _check_splits_and_noise(results, config),
     )
     artifact_paths += _run_check(
         checks,
@@ -482,6 +623,8 @@ def audit_release(args):
             random_state=args.artifact_seed,
             model_output_dir=args.model_output_dir,
             project_root=PROJECT_ROOT,
+            results=results,
+            cv_folds=config["cv_folds"],
         )
         model_result["metadata"] = metadata
         return detail, paths

@@ -26,6 +26,7 @@ from scripts.train_final_models import (
     train_final_model_set,
 )
 from src.utils.io import save_dataframe
+from src.utils.plotting import CONDITION_LABELS, save_report_figure
 
 
 def _plot_confusion_matrix(model, X_test, y_test, title, path):
@@ -40,7 +41,7 @@ def _plot_confusion_matrix(model, X_test, y_test, title, path):
     )
     ax.set_title(title)
     fig.tight_layout()
-    fig.savefig(path, dpi=300)
+    save_report_figure(fig, path)
     plt.close(fig)
 
 
@@ -93,7 +94,7 @@ def _plot_probability_curve(model, X_test, y_test, curve_type, title, path):
     ax.set_ylabel(ylabel)
     ax.legend(loc="best")
     fig.tight_layout()
-    fig.savefig(path, dpi=300)
+    save_report_figure(fig, path)
     plt.close(fig)
 
     return score
@@ -107,20 +108,24 @@ def _classification_report_frame(model, X_test, y_test, condition):
         output_dict=True,
         zero_division=0,
     )
-    frame = pd.DataFrame(report).T.reset_index().rename(columns={"index": "label"})
+    # sklearn's scalar accuracy is not a per-class row (in particular, not support).
+    frame = pd.DataFrame({
+        label: metrics for label, metrics in report.items() if isinstance(metrics, dict)
+    }).T.reset_index().rename(columns={"index": "label"})
     frame.insert(0, "condition", condition)
     return frame
 
 
 def _plot_f1_summary(summary, path):
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(summary["condition"], summary["f1_macro"])
+    ax.bar(summary["condition"].map(CONDITION_LABELS), summary["f1_macro"])
     ax.set_title("Macro F1 by training condition")
     ax.set_xlabel("Condition")
     ax.set_ylabel("Macro F1")
+    ax.set_ylim(0, 1)
     ax.tick_params(axis="x", rotation=25)
     fig.tight_layout()
-    fig.savefig(path, dpi=300)
+    save_report_figure(fig, path)
     plt.close(fig)
 
 
@@ -165,7 +170,7 @@ def create_model_diagnostics(
             model,
             X_test,
             y_test,
-            title=f"{condition}: confusion matrix",
+            title=f"{CONDITION_LABELS[condition]}: confusion matrix",
             path=figure_dir / f"{slug}_confusion_matrix.png",
         )
         roc_auc = _plot_probability_curve(
@@ -173,7 +178,7 @@ def create_model_diagnostics(
             X_test,
             y_test,
             curve_type="roc",
-            title=f"{condition}: ROC curve",
+            title=f"{CONDITION_LABELS[condition]}: ROC curve",
             path=figure_dir / f"{slug}_roc_curve.png",
         )
         pr_auc = _plot_probability_curve(
@@ -181,7 +186,7 @@ def create_model_diagnostics(
             X_test,
             y_test,
             curve_type="pr",
-            title=f"{condition}: precision-recall curve",
+            title=f"{CONDITION_LABELS[condition]}: precision-recall curve",
             path=figure_dir / f"{slug}_precision_recall_curve.png",
         )
 

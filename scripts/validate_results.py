@@ -338,6 +338,30 @@ def validate_results(df: pd.DataFrame, config: dict):
         )
     )
 
+    precision = pd.to_numeric(cleaning_rows["det_precision"], errors="coerce").to_numpy()
+    recall = pd.to_numeric(cleaning_rows["det_recall"], errors="coerce").to_numpy()
+    expected_f1 = np.divide(2 * precision * recall, precision + recall,
+                            out=np.zeros_like(precision), where=(precision + recall) != 0)
+    tp_precision = precision * cleaning_rows["n_suspicious"].to_numpy()
+    tp_recall = recall * cleaning_rows["n_corrupted"].to_numpy()
+    detector_arithmetic_ok = (
+        np.allclose(expected_f1, cleaning_rows["det_f1"], rtol=0, atol=1e-10)
+        and np.allclose(tp_precision, tp_recall, rtol=0, atol=1e-8)
+        and np.allclose(tp_precision, np.round(tp_precision), rtol=0, atol=1e-8)
+    )
+    issues.append(_issue(
+        "PASS" if detector_arithmetic_ok else "FAIL", "detection_arithmetic",
+        "Precision, recall, F1, and integer true-positive counts agree",
+    ))
+    correct_predictions = pd.to_numeric(df["accuracy"], errors="coerce") * df["n_test"]
+    accuracy_counts_ok = np.allclose(
+        correct_predictions, np.round(correct_predictions), rtol=0, atol=1e-8
+    )
+    issues.append(_issue(
+        "PASS" if accuracy_counts_ok else "FAIL", "accuracy_count_arithmetic",
+        "Accuracy corresponds to an integer number of correct test predictions",
+    ))
+
     clean_rows = df[df["condition"] == "clean_upper_bound"]
     clean_group_cols = ["dataset", "model", "random_state"]
     clean_invariance = (

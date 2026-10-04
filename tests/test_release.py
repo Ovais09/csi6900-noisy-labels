@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from scripts.audit_release import (
+    _check_splits_and_noise,
     _check_summary,
     _validate_png,
     expected_main_figures,
@@ -125,3 +126,13 @@ def test_expected_main_figure_count_follows_matrix(tmp_path):
     assert len(paths) == 20
     assert len(set(paths)) == 20
     assert all(Path(path).parent == tmp_path for path in paths)
+
+
+def test_split_audit_reconstructs_counts_instead_of_trusting_csv():
+    results = _small_results()
+    config = {"datasets": ["breast_cancer"], "seeds": [42],
+              "noise_types": ["symmetric"], "noise_rates": [0.1]}
+    assert "disjoint splits" in _check_splits_and_noise(results, config)
+    results["n_test"] += 1
+    with pytest.raises(ValueError, match="Reconstructed split/noise counts"):
+        _check_splits_and_noise(results, config)
