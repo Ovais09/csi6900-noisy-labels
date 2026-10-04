@@ -68,6 +68,7 @@ def test_make_all_analysis_tables_returns_expected_tables():
         "noise_impact_summary",
         "best_cleaning_by_setting",
         "paired_cleaning_comparisons",
+        "combined_detector_comparisons",
     }
     assert all(not table.empty for table in tables.values())
     assert set(tables["detector_ranking"]["detector"]) == {"combined", "confidence"}
@@ -100,8 +101,10 @@ def test_paired_comparisons_have_complete_pairing_and_valid_rates():
     assert set(comparisons["settings"]) == {1}
     assert set(comparisons["seeds_per_setting_min"]) == {1}
     assert set(comparisons["seeds_per_setting_max"]) == {1}
-    assert comparisons["wilcoxon_p"].between(0.0, 1.0).all()
-    assert comparisons["wilcoxon_p_holm"].between(0.0, 1.0).all()
+    assert comparisons["independent_datasets"].eq(1).all()
+    assert comparisons["paired_permutation_p"].isna().all()
+    assert comparisons["paired_permutation_p_holm"].isna().all()
+    assert comparisons["ci95_low"].isna().all()
     assert np.allclose(
         comparisons[["win_rate", "tie_rate", "loss_rate"]].sum(axis=1),
         1.0,
@@ -132,6 +135,30 @@ def test_holm_adjustment_is_monotonic_and_not_smaller_than_raw_p_values():
     assert np.all(adjusted >= raw)
     sorted_adjusted = adjusted[np.argsort(raw)]
     assert np.all(np.diff(sorted_adjusted) >= 0.0)
+
+
+def test_holm_does_not_turn_unavailable_tests_into_significant_results():
+    adjusted = _holm_adjust([np.nan, 0.01, 0.04])
+    assert np.isnan(adjusted[0])
+    np.testing.assert_allclose(adjusted[1:], [0.02, 0.04])
+
+
+def test_repeated_settings_do_not_inflate_independent_sample_size():
+    frames = []
+    for dataset in ("a", "b", "c", "d"):
+        for rate in (0.1, 0.2, 0.3):
+            frame = _small_results()
+            frame["dataset"] = dataset
+            frame["noise_rate"] = rate
+            for metric in ("accuracy", "f1_macro", "auroc"):
+                frame[metric] = np.where(frame["condition"].eq("noisy_baseline"), 0.7, 0.8)
+            frames.append(frame)
+    comparisons = paired_cleaning_comparisons(pd.concat(frames), n_resamples=100)
+    aggregate = comparisons[comparisons["scope"].eq("all")]
+    assert aggregate["settings"].eq(12).all()
+    assert aggregate["independent_datasets"].eq(4).all()
+    np.testing.assert_allclose(aggregate["paired_permutation_p"], 0.125)
+    assert aggregate["paired_permutation_p_holm"].ge(0.125).all()
 
 
 def test_run_full_pipeline_quick_mode_skips_full_validation(monkeypatch):

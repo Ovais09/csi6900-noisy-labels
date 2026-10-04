@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import wilcoxon
+from scipy.stats import permutation_test
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -221,17 +221,15 @@ def _holm_adjust(p_values):
     """Return Holm family-wise adjusted p-values in original row order."""
 
     p_values = np.asarray(p_values, dtype=float)
-    order = np.argsort(p_values)
-    adjusted_sorted = np.empty(len(p_values), dtype=float)
+    finite = np.flatnonzero(np.isfinite(p_values))
+    order = finite[np.argsort(p_values[finite])]
+    adjusted = np.full(len(p_values), np.nan)
     running_max = 0.0
 
     for rank, index in enumerate(order):
-        adjusted = min(1.0, (len(p_values) - rank) * p_values[index])
-        running_max = max(running_max, adjusted)
-        adjusted_sorted[rank] = running_max
-
-    adjusted = np.empty(len(p_values), dtype=float)
-    adjusted[order] = adjusted_sorted
+        value = min(1.0, (len(order) - rank) * p_values[index])
+        running_max = max(running_max, value)
+        adjusted[index] = running_max
     return adjusted
 
 
@@ -239,8 +237,14 @@ def paired_cleaning_comparisons(
     df: pd.DataFrame,
     n_resamples: int = 5000,
     random_state: int = 2026,
+    reference_detector=None,
 ) -> pd.DataFrame:
-    """Compare cleaning conditions with noisy baselines using paired runs."""
+    """Pair exact runs and use datasets, not correlated settings, for inference.
+
+    Per-dataset scopes are descriptive: one dataset cannot support a population
+    confidence interval or test. The aggregate scope gives each dataset equal
+    weight and uses an exact paired sign-flip test of mean gain.
+    """
 
     rng = np.random.default_rng(random_state)
     scopes = [("all", df)] + [
@@ -262,6 +266,13 @@ def paired_cleaning_comparisons(
             for (condition, detector), group in cleaned.groupby(
                 ["condition", "detector"], sort=True
             ):
+                if reference_detector is not None:
+                    if detector != "combined":
+                        continue
+                    baseline_runs = cleaned[
+                        cleaned["condition"].eq(condition)
+                        & cleaned["detector"].eq(reference_detector)
+                    ][BASE_COLUMNS + [metric]].rename(columns={metric: "baseline_value"})
                 cleaned_runs = group[BASE_COLUMNS + [metric]].rename(
                     columns={metric: "cleaned_value"}
                 )
@@ -297,18 +308,26 @@ def paired_cleaning_comparisons(
                 if len(differences) == 0:
                     continue
 
+                dataset_means = paired.groupby("dataset")[
+                    ["baseline_value", "cleaned_value", "difference"]
+                ].mean()
+                independent_gains = dataset_means["difference"].to_numpy()
+                # Always validate n_resamples, even for one-dataset smoke runs.
                 ci_low, ci_high = _bootstrap_mean_interval(
-                    differences,
-                    rng=rng,
-                    n_resamples=n_resamples,
+                    independent_gains, rng=rng, n_resamples=n_resamples
                 )
-                if np.allclose(differences, 0.0):
-                    p_value = 1.0
+                p_value = np.nan
+                if len(independent_gains) < 2:
+                    ci_low, ci_high = np.nan, np.nan
                 else:
-                    p_value = float(wilcoxon(differences).pvalue)
+                    p_value = float(permutation_test(
+                        (independent_gains,), np.mean,
+                        permutation_type="samples", n_resamples=np.inf,
+                        alternative="two-sided",
+                    ).pvalue)
 
-                std = differences.std(ddof=1) if len(differences) > 1 else 0.0
-                effect_dz = differences.mean() / std if std > 0 else 0.0
+                std = independent_gains.std(ddof=1) if len(independent_gains) > 1 else np.nan
+                effect_dz = independent_gains.mean() / std if std > 0 else np.nan
                 tolerance = 1e-12
                 rows.append(
                     {
@@ -316,12 +335,15 @@ def paired_cleaning_comparisons(
                         "metric": metric,
                         "condition": condition,
                         "detector": detector,
+                        "reference": reference_detector or "noisy_baseline",
                         "settings": len(differences),
+                        "independent_datasets": len(independent_gains),
+                        "inference_unit": "dataset",
                         "seeds_per_setting_min": paired["seeds"].min(),
                         "seeds_per_setting_max": paired["seeds"].max(),
-                        "baseline_mean": paired["baseline_value"].mean(),
-                        "cleaned_mean": paired["cleaned_value"].mean(),
-                        "mean_gain": differences.mean(),
+                        "baseline_mean": dataset_means["baseline_value"].mean(),
+                        "cleaned_mean": dataset_means["cleaned_value"].mean(),
+                        "mean_gain": independent_gains.mean(),
                         "median_gain": np.median(differences),
                         "ci95_low": ci_low,
                         "ci95_high": ci_high,
@@ -329,19 +351,34 @@ def paired_cleaning_comparisons(
                         "tie_rate": np.mean(np.abs(differences) <= tolerance),
                         "loss_rate": np.mean(differences < -tolerance),
                         "paired_effect_dz": effect_dz,
-                        "wilcoxon_p": p_value,
+                        "paired_permutation_p": p_value,
                     }
                 )
 
     comparisons = pd.DataFrame(rows)
-    comparisons["wilcoxon_p_holm"] = comparisons.groupby(
+    comparisons["paired_permutation_p_holm"] = comparisons.groupby(
         ["scope", "metric"], group_keys=False
-    )["wilcoxon_p"].transform(_holm_adjust)
+    )["paired_permutation_p"].transform(_holm_adjust)
     return comparisons.sort_values(
         ["scope", "metric", "mean_gain", "condition", "detector"],
         ascending=[True, True, False, True, True],
         kind="mergesort",
     ).reset_index(drop=True)
+
+
+def combined_detector_comparisons(df):
+    """Compare the proposed score directly with each simpler detector."""
+    references = sorted(set(df["detector"]) - {"none", "combined"})
+    if "combined" not in set(df["detector"]) or not references:
+        return pd.DataFrame(columns=["scope", "metric", "condition", "detector", "reference"])
+    comparisons = pd.concat([
+        paired_cleaning_comparisons(df, reference_detector=reference)
+        for reference in references
+    ], ignore_index=True)
+    comparisons["paired_permutation_p_holm"] = comparisons.groupby(
+        ["scope", "metric"]
+    )["paired_permutation_p"].transform(_holm_adjust)
+    return comparisons
 
 
 def make_all_analysis_tables(df: pd.DataFrame):
@@ -355,6 +392,7 @@ def make_all_analysis_tables(df: pd.DataFrame):
         "noise_impact_summary": noise_impact_summary(df),
         "best_cleaning_by_setting": best_cleaning_by_setting(df),
         "paired_cleaning_comparisons": paired_cleaning_comparisons(df),
+        "combined_detector_comparisons": combined_detector_comparisons(df),
     }
 
 
