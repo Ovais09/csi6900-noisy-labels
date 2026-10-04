@@ -532,6 +532,11 @@ def _check_run_manifest(manifest_path, config_path, results_path, config, projec
     if manifest.get("datasets") != expected_datasets:
         raise ValueError("Run manifest dataset fingerprints are stale")
     current_git = git_state(project_root)
+    if not current_git.get("commit"):
+        raise ValueError(
+            "A final release requires a known source revision; build Docker with "
+            "--build-arg VCS_REF=$(git rev-parse HEAD)"
+        )
     if manifest.get("git", {}).get("commit") != current_git.get("commit"):
         raise ValueError("Run manifest Git commit is stale")
     if current_git.get("dirty") is True or manifest.get("git", {}).get("dirty") is True:
@@ -540,6 +545,8 @@ def _check_run_manifest(manifest_path, config_path, results_path, config, projec
     if not dependencies or any(value is None for value in dependencies.values()):
         raise ValueError("Run manifest has incomplete dependency versions")
     training = verify_training_record(config, results_path, project_root)
+    if not training.get("git", {}).get("commit"):
+        raise ValueError("A final release requires a recorded original training revision")
     if manifest.get("training") != training:
         raise ValueError("Run manifest has stale or missing original training provenance")
     return "config, data, result, environment, and Git fingerprints match", [

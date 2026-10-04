@@ -11,7 +11,8 @@ from src.utils.provenance import sha256_file
 from src.utils.release import build_release_manifest
 
 
-def test_release_bundle_includes_source_and_ignored_results_and_detects_tampering(tmp_path):
+@pytest.fixture
+def frozen_checkout(tmp_path):
     root = tmp_path / "repo"
     root.mkdir()
     (root / ".gitignore").write_text("results/\n", encoding="utf-8")
@@ -27,6 +28,11 @@ def test_release_bundle_includes_source_and_ignored_results_and_detects_tamperin
     save_json_atomic(build_release_manifest([artifact], root), release_path)
     save_json_atomic({"status": "PASS", "release_manifest_sha256": sha256_file(release_path)},
                      root / "results/logs/final_audit.json")
+    return root
+
+
+def test_release_bundle_includes_source_and_ignored_results_and_detects_tampering(tmp_path, frozen_checkout):
+    root = frozen_checkout
     bundle = tmp_path / "release.tar.gz"
     index = create_bundle(bundle, root)
     assert verify_bundle(bundle) == index
@@ -46,6 +52,28 @@ def test_release_bundle_includes_source_and_ignored_results_and_detects_tamperin
     (root / "main.py").write_text("changed\n", encoding="utf-8")
     with pytest.raises(ValueError, match="clean Git checkout"):
         create_bundle(bundle, root)
+
+
+@pytest.mark.parametrize("output_path", [
+    "main.py", "results/table.csv", "results/logs/release_manifest.json",
+    "results/logs/final_audit.json",
+])
+def test_bundle_output_cannot_replace_a_source_or_release_input(frozen_checkout, output_path):
+    output = frozen_checkout / output_path
+    original = output.read_bytes()
+    with pytest.raises(ValueError, match="overwrite a release input"):
+        create_bundle(output, frozen_checkout)
+    assert output.read_bytes() == original
+
+
+def test_bundle_output_alias_cannot_replace_a_release_input(frozen_checkout):
+    output = frozen_checkout / "results" / "alias.tar.gz"
+    artifact = frozen_checkout / "results" / "table.csv"
+    original = artifact.read_bytes()
+    output.symlink_to(artifact)
+    with pytest.raises(ValueError, match="overwrite a release input"):
+        create_bundle(output, frozen_checkout)
+    assert artifact.read_bytes() == original
 
 
 @pytest.mark.parametrize("name", ["../outside", "/absolute"])

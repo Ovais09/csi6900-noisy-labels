@@ -70,6 +70,9 @@ def create_bundle(output, project_root=PROJECT_ROOT,
                             capture_output=True).stdout.decode().split("\0")
     paths = sorted(set(filter(None, source)) | {r["path"] for r in artifacts}
                    | {str(release_path), str(audit_path)})
+    output = Path(output).resolve()
+    if output in {(root / name).resolve() for name in paths}:
+        raise ValueError("Bundle output would overwrite a release input; choose a separate archive path")
     records = []
     for name in paths:
         path = root / name
@@ -77,7 +80,6 @@ def create_bundle(output, project_root=PROJECT_ROOT,
             raise ValueError(f"Cannot package a linked or external file: {name}")
         records.append({"path": name, "bytes": path.stat().st_size, "sha256": sha256_file(path)})
     index = {"schema_version": 1, "source_commit": state["commit"], "files": records}
-    output = Path(output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:

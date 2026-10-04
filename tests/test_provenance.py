@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 import yaml
 
+from scripts.audit_release import _check_run_manifest
 from src.utils.config import validate_experiment_config
 from src.utils.io import save_json_atomic
 from src.utils.provenance import (
@@ -147,3 +148,29 @@ def test_untracked_or_incomplete_results_cannot_be_published(checkpoint):
     training_manifest_path(results).unlink()
     with pytest.raises(ValueError, match="Missing training provenance"):
         start_training_record(config, results, root, resume=True)
+
+
+def test_audit_rejects_matching_unknown_source_revisions(checkpoint, monkeypatch):
+    config, results, root = checkpoint
+    monkeypatch.delenv("CSI6900_GIT_COMMIT", raising=False)
+    config_path = root / "config.yaml"
+    config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    manifest = build_run_manifest(config, config_path, results, root)
+    manifest_path = save_json_atomic(manifest, root / "run_manifest.json")
+    assert manifest["git"]["commit"] is None
+    with pytest.raises(ValueError, match="known source revision"):
+        _check_run_manifest(manifest_path, config_path, results, config, root)
+
+
+def test_audit_rejects_missing_original_training_revision(checkpoint, monkeypatch):
+    config, results, root = checkpoint
+    monkeypatch.setenv("CSI6900_GIT_COMMIT", "a" * 40)
+    config_path = root / "config.yaml"
+    config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    manifest = build_run_manifest(config, config_path, results, root)
+    manifest["training"]["git"]["commit"] = None
+    from src.utils.training import training_manifest_path
+    save_json_atomic(manifest["training"], training_manifest_path(results))
+    manifest_path = save_json_atomic(manifest, root / "run_manifest.json")
+    with pytest.raises(ValueError, match="original training revision"):
+        _check_run_manifest(manifest_path, config_path, results, config, root)
