@@ -27,6 +27,15 @@ def _seaborn_lineplot(**kwargs):
         sns.lineplot(**kwargs, ci="sd")
 
 
+def _fallback_lineplot(subset, metric, series, ax):
+    markers = ("o", "s", "^", "D", "v", "P", "X", "<", ">", "*")
+    for index, (label, group) in enumerate(subset.groupby(series)):
+        grouped = group.groupby("noise_rate")[metric].agg(["mean", "std"])
+        ax.errorbar(grouped.index, grouped["mean"], yerr=grouped["std"].fillna(0),
+                    marker=markers[index % len(markers)],
+                    linestyle="-" if index % 2 == 0 else "--", label=label)
+
+
 def add_plot_labels(df):
     df = df.copy()
 
@@ -64,15 +73,7 @@ def plot_metric(df, metric, dataset, noise_type, model, output_dir):
             ax=ax,
         )
     else:
-        for condition, group in subset.groupby("plot_condition"):
-            grouped = group.groupby("noise_rate")[metric].mean().reset_index()
-            plt.plot(
-                grouped["noise_rate"],
-                grouped[metric],
-                marker="o",
-                label=condition,
-            )
-        plt.legend()
+        _fallback_lineplot(subset, metric, "plot_condition", ax)
     ax.set_title(f"{dataset.replace('_', ' ').title()} | {model.replace('_', ' ')}\n"
                  f"{noise_type.replace('_', ' ')} noise; mean +/- 1 seed SD")
     ax.set_xlabel("Training label noise")
@@ -102,10 +103,12 @@ def detection_plot_data(df, dataset, model):
 
 
 def plot_detection_f1(df, dataset, model, output_dir):
-    subset = detection_plot_data(df, dataset, model)
+    subset = detection_plot_data(df, dataset, model).copy()
 
     if subset.empty:
         return
+
+    subset["series"] = subset["detector"] + " / " + subset["noise_type"].str.replace("_", " ")
 
     fig, ax = plt.subplots(figsize=(10, 5.5))
     if sns is not None:
@@ -113,21 +116,13 @@ def plot_detection_f1(df, dataset, model, output_dir):
             data=subset,
             x="noise_rate",
             y="det_f1",
-            hue="detector",
-            style="noise_type",
+            hue="series",
+            style="series",
             markers=True,
             ax=ax,
         )
     else:
-        for (detector, noise_type), group in subset.groupby(["detector", "noise_type"]):
-            grouped = group.groupby("noise_rate")["det_f1"].mean().reset_index()
-            plt.plot(
-                grouped["noise_rate"],
-                grouped["det_f1"],
-                marker="o",
-                label=f"{detector}, {noise_type}",
-            )
-        plt.legend()
+        _fallback_lineplot(subset, "det_f1", "series", ax)
     ax.set_title(f"{dataset.replace('_', ' ').title()} | {model.replace('_', ' ')}\n"
                  "Detection F1; mean +/- 1 seed SD")
     ax.set_xlabel("Training label noise")
@@ -136,7 +131,7 @@ def plot_detection_f1(df, dataset, model, output_dir):
     ax.set_xticks(sorted(subset["noise_rate"].unique()))
     ax.set_ylim(0, 1.02)
     ax.grid(axis="y", alpha=0.2)
-    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), frameon=False)
+    ax.legend(title=None, loc="upper left", bbox_to_anchor=(1.02, 1), frameon=False)
     fig.tight_layout()
 
     path = output_dir / f"{dataset}_{model}_detection_f1.png"

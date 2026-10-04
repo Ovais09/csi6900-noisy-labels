@@ -5,7 +5,7 @@ tabular classification datasets.
 
 The pipeline:
 
-1. Load clean tabular datasets.
+1. Load public tabular datasets, treating their supplied labels as the reference.
 2. Split into train/validation/test.
 3. Corrupt only the training labels.
 4. Train clean and noisy baselines.
@@ -185,7 +185,9 @@ coverage report --include='src/*' --show-missing --fail-under=85
 ```
 
 GitHub Actions runs the same lint and coverage checks on Python 3.9 and 3.11,
-then builds the Docker image and runs the test suite inside it.
+then builds the Docker image, runs its test suite, and executes the offline
+quick pipeline. This workflow is configured here; a green remote run still
+requires pushing the commits and checking GitHub Actions.
 
 ## Notebook Workflow
 
@@ -265,8 +267,10 @@ Main outputs:
 - `results/tables/validation_report.csv`
 - `results/tables/analysis/*.csv`
 - `results/tables/analysis/paired_cleaning_comparisons.csv`
+- `results/tables/analysis/combined_detector_comparisons.csv`
 - `results/tables/model_diagnostics/*.csv`
 - `results/figures/*.png`
+- `results/figures/*.pdf`
 - `results/figures/model_diagnostics/*.png`
 - `results/logs/run_manifest.json`
 - `results/models/**/clean_upper_bound.joblib`
@@ -281,10 +285,22 @@ invalid values.
 
 `scripts/make_analysis_tables.py` computes cleaning gains after pairing each
 cleaned result with the noisy baseline from the same dataset, noise type, noise
-rate, model, and seed. For statistical comparisons, seeds are averaged within
-each experimental setting before bootstrap confidence intervals and
-Holm-corrected Wilcoxon tests are calculated. This avoids treating repeated
-seeds as independent experimental settings.
+rate, model, and seed. Seeds are averaged within settings, then settings within
+datasets. Only dataset means are used for bootstrap intervals and exact
+two-sided paired sign-flip tests, with equal weight for each dataset. Holm
+adjustment covers the comparisons within each scope and metric. Per-dataset
+rows are descriptive only: their inferential fields are blank. With just four
+datasets, the smallest attainable two-sided exact p-value is 0.125; these
+results cannot establish population-wide significance at 0.05. Bootstrap
+intervals with four datasets are exploratory, not strong uncertainty guarantees.
+Win/tie/loss rates and median gains summarize settings, not independent trials.
+The separate combined-detector table pairs combined against each simpler
+detector under the same removal or relabeling condition.
+
+The dataset-level comparison principle follows
+[Demsar (2006)](https://jmlr.org/papers/v7/demsar06a.html); the implemented exact
+test is SciPy's [paired sign-flip permutation test](https://docs.scipy.org/doc/scipy-1.13.1/reference/generated/scipy.stats.permutation_test.html),
+not Demsar's complete testing procedure.
 
 `scripts/make_run_manifest.py` records SHA-256 fingerprints for the config,
 datasets, and result CSV together with package versions, Python/platform
@@ -304,12 +320,83 @@ and per-class classification reports. `scripts/train_final_models.py` saves the
 four fitted comparison models for that same setting.
 
 `scripts/audit_release.py` independently recomputes summary and analysis
-tables, validates every canonical PNG, reloads saved models and reproduces
-their metrics, verifies exported datasets, checks provenance, and freezes a
+tables, validates every canonical PNG and its vector PDF companion, reloads
+saved models and matches them to the matrix, recomputes classification reports
+and curve areas, reconstructs splits and corruption counts, verifies exported
+datasets against their source archive, checks provenance, and freezes a
 SHA-256 inventory. Run `python scripts/audit_release.py` after freezing to
 detect any changed or missing artifact.
 
 Generated result files are intentionally ignored by git.
+
+## Research Boundaries
+
+- Validation is reserved, not used for fitting, selecting detectors, or tuning
+  thresholds. All reported predictions use untouched test labels. Scaling is
+  fitted inside each training/OOF pipeline, not before the split.
+- Selecting the known injected noise fraction is an **oracle budget**. This
+  does not demonstrate deployment with unknown real-world noise rates.
+- `clean_upper_bound` is a legacy column value for a clean-label reference,
+  not a guaranteed upper bound. Original dataset labels are not independently
+  verified as error-free.
+- The cyclic noise model is class-dependent but is not instance-dependent or
+  a realistic confusion matrix learned from annotators. In binary tasks both
+  noise mechanisms flip to the other class; only sampling and rounding differ.
+- Combined is an empirical heuristic, not a demonstrated novel or universally
+  superior algorithm. In binary classification its default score is monotone
+  in confidence suspiciousness away from probability ties, so it generally
+  produces the same ranking. Multiclass ablations are essential.
+- Disagreement produces many tied scores. Selection uses deterministic row
+  order to break ties. Margin measures uncertainty, not necessarily label error.
+- Relabeling uses one model's out-of-fold predictions, not multi-model consensus.
+- The best-by-setting table is retrospective test-set description, not an
+  unbiased model-selection procedure. Saved-model diagnostics illustrate one
+  setting; the complete matrix is the comparative evidence.
+- Diagnostic multiclass ROC/PR curves use micro averaging. The main AUROC is
+  macro one-vs-rest. PR AUC uses trapezoidal integration, not average precision.
+- Four datasets and four overlapping random splits limit generalization. The
+  benchmark is CPU-based; Docker isolates dependencies, not physical hardware.
+
+## Preserve The Release
+
+From a clean checkout, use the same Docker image to finalize and re-audit:
+
+```bash
+docker run --rm --network none \
+  -v "$PWD/datasets:/app/datasets" -v "$PWD/results:/app/results" \
+  csi6900-noisy-labels \
+  python scripts/finalize_release.py --skip-download --skip-training
+
+docker run --rm --network none \
+  -v "$PWD/datasets:/app/datasets:ro" -v "$PWD/results:/app/results" \
+  csi6900-noisy-labels python scripts/audit_release.py
+
+.venv/bin/python scripts/package_release.py
+.venv/bin/python scripts/package_release.py --verify results/logs/csi6900-final-release.tar.gz
+```
+
+The bundle contains tracked source plus every frozen dataset, result, figure,
+and fitted model. It excludes `.git`, the virtual environment, and old scratch
+runs. `BUNDLE_MANIFEST.json` records all file checksums and `source_commit`.
+Keep this archive in a separate backup location; pushing Git does **not** back
+up these ignored artifacts. Only load trusted `.joblib` files: deserialization
+can execute code.
+
+To restore a trusted, verified bundle into an empty directory:
+
+```bash
+tar -xzf /path/to/csi6900-final-release.tar.gz -C /path/to/empty-directory
+cd /path/to/empty-directory
+docker build --build-arg VCS_REF="$(python3 -c 'import json; print(json.load(open("BUNDLE_MANIFEST.json"))["source_commit"])')" \
+  -t csi6900-restored .
+docker run --rm --network none \
+  -v "$PWD/datasets:/app/datasets:ro" -v "$PWD/results:/app/results" \
+  csi6900-restored python scripts/audit_release.py
+```
+
+The report handoff is in `report/report_outline.md`; verified examples and
+their provenance are catalogued in `report/reference_sources.csv`. Neither
+an old example nor this audit guarantees a grade or replaces supervisor review.
 
 ## Done Criteria
 

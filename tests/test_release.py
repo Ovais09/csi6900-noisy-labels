@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
+from scripts import make_plots
 from scripts.audit_release import (
     _check_splits_and_noise,
     _check_summary,
@@ -136,3 +137,17 @@ def test_split_audit_reconstructs_counts_instead_of_trusting_csv():
     results["n_test"] += 1
     with pytest.raises(ValueError, match="Reconstructed split/noise counts"):
         _check_splits_and_noise(results, config)
+
+
+@pytest.mark.parametrize("fallback", [False, True])
+def test_report_plots_export_nonblank_raster_and_vector_files(tmp_path, monkeypatch, fallback):
+    if fallback:
+        monkeypatch.setattr(make_plots, "sns", None)
+    results = make_plots.add_plot_labels(_small_results())
+    make_plots.plot_metric(results, "accuracy", "breast_cancer", "symmetric",
+                           "logistic_regression", tmp_path)
+    make_plots.plot_detection_f1(results, "breast_cancer", "logistic_regression", tmp_path)
+    assert len(list(tmp_path.glob("*.png"))) == 2
+    for path in tmp_path.glob("*.png"):
+        _validate_png(path)
+        assert path.with_suffix(".pdf").read_bytes().startswith(b"%PDF-")
