@@ -9,6 +9,8 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
+report/build/
+releases/
 
 datasets/raw/*
 datasets/processed/*
