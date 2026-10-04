@@ -130,3 +130,18 @@ def test_experiment_rejects_invalid_detector_lists(detectors):
             cv_folds=3,
             detector_methods=detectors,
         )
+
+
+@pytest.mark.parametrize("model", ["logistic_regression", "random_forest", "hist_gradient_boosting"])
+@pytest.mark.parametrize("noise_type", ["symmetric", "class_dependent"])
+def test_zero_noise_preserves_every_condition_and_detector(model, noise_type):
+    results = run_single_experiment(
+        dataset_name="wine", noise_type=noise_type, noise_rate=0,
+        model_name=model, random_state=42, cv_folds=3,
+        detector_methods=("combined", "confidence", "disagreement", "margin"),
+    )
+    assert len(results) == 10
+    assert results["n_corrupted"].eq(0).all()
+    assert results["n_suspicious"].dropna().eq(0).all()
+    for metric in ("accuracy", "f1_macro", "auroc"):
+        assert results[metric].nunique() == 1

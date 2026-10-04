@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from sklearn.base import BaseEstimator, ClassifierMixin
 
 from src.cleaning.cleaning_methods import (
     relabel_suspicious_samples,
@@ -205,3 +206,34 @@ def test_combined_probability_scoring_rejects_invalid_weights():
             disagreement_weight=0.5,
             margin_weight=0.5,
         )
+
+
+class UnseenRowsClassifier(ClassifierMixin, BaseEstimator):
+    def fit(self, X, y):
+        self.seen_ = set(X.index)
+        self.classes_ = np.unique(y)
+        return self
+
+    def predict_proba(self, X):
+        assert not self.seen_.intersection(X.index), "OOF prediction saw its own training row"
+        return np.full((len(X), len(self.classes_)), 1.0 / len(self.classes_))
+
+    def predict(self, X):
+        return self.classes_[self.predict_proba(X).argmax(axis=1)]
+
+
+def test_oof_predictions_never_score_rows_seen_during_fit():
+    dataset = load_dataset("wine")
+    proba = cross_validated_probabilities(UnseenRowsClassifier(), dataset.X, dataset.y,
+                                          cv=5, random_state=42)
+    assert proba.shape == (178, 3)
+
+
+def test_binary_combined_score_has_same_ranking_as_confidence_without_ties():
+    rng = np.random.default_rng(7)
+    labels = rng.integers(0, 2, size=1000)
+    first_proba = rng.uniform(size=len(labels))
+    proba = np.column_stack([first_proba, 1 - first_proba])
+    confidence = scores_from_probabilities(proba, labels, detector="confidence")
+    combined = scores_from_probabilities(proba, labels, detector="combined")
+    np.testing.assert_array_equal(np.argsort(confidence), np.argsort(combined))

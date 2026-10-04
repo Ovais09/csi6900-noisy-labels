@@ -55,3 +55,9 @@ jobs:
 
       - name: Run container test suite
         run: docker run --rm csi6900-noisy-labels
+
+      - name: Run offline end-to-end experiment
+        run: >-
+          docker run --rm --network none csi6900-noisy-labels
+          python scripts/run_full_pipeline.py
+          --quick --skip-download
