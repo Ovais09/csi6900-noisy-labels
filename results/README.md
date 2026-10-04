@@ -31,16 +31,35 @@ files preserve the directory structure in a clean clone.
 - `tables/analysis/noise_impact_summary.csv`: clean-to-noisy accuracy loss.
 - `tables/analysis/best_cleaning_by_setting.csv`: best cleaning strategy for
   each dataset/noise/rate/model setting.
-- `tables/analysis/paired_cleaning_comparisons.csv`: seed-averaged paired
-  effects, bootstrap 95% intervals, win/tie/loss rates, paired effect sizes,
-  and Holm-adjusted Wilcoxon p-values.
+- `tables/analysis/paired_cleaning_comparisons.csv`: paired cleaning-versus-noisy
+  gains. Seeds are averaged within settings, then settings within datasets.
+  Bootstrap intervals and Holm-adjusted exact sign-flip tests use four dataset
+  means, not correlated settings. Per-dataset inference is undefined; win/tie/
+  loss rates describe settings. With four datasets, the smallest two-sided exact
+  p-value is 0.125. Intervals are exploratory, not evidence of broad superiority.
+- `tables/analysis/combined_detector_comparisons.csv`: matched comparisons of
+  combined scoring against each simpler detector under the same cleaning action.
 
 ## Figures and Models
 
-- `figures/*.png`: accuracy, macro-F1, and detection-F1 curves.
+- `figures/*.png` and `figures/*.pdf`: raster and vector accuracy, macro-F1,
+  and detection-F1 curves. Shading represents seed standard deviation, not a
+  confidence interval.
 - `figures/model_diagnostics/`: confusion matrices, ROC curves,
   precision-recall curves, and condition-level F1 summaries.
 - `models/`: optional fitted estimators plus model hashes and metadata.
+
+The canonical release saves four models from one illustrative setting, not
+every fitted estimator from the matrix. Classification-report rows contain
+per-class and averaged metrics; scalar accuracy is in the diagnostic summary.
+Multiclass diagnostic ROC/PR curves are micro-averaged, unlike the main macro
+one-vs-rest AUROC. PR AUC is trapezoidal rather than average precision.
+
+`logs/csi6900-final-release.tar.gz` is the portable, checksum-verified backup.
+It must be backed up separately from Git. Create it from a clean checkout with
+`python scripts/package_release.py`; its output cannot replace any input file.
+Release audits require both the reporting and original training revisions to
+be recorded. Rebuilding reporting artifacts does not rewrite training provenance.
 
 Regenerate all derived outputs from an existing full result CSV with:
 
